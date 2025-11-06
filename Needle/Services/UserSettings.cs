@@ -16,6 +16,7 @@ public class UserSettings
     public string Pattern { get; set; } = string.Empty;
     public bool IsRegex { get; set; }
     public bool IsCaseSensitive { get; set; }
+    public bool IncludeSubdirectories { get; set; } = true;
 
     public static UserSettings Load()
     {

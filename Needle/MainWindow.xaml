@@ -127,6 +127,8 @@
                                       VerticalAlignment="Center" />
                             <CheckBox Content="Case sensitive" IsChecked="{Binding IsCaseSensitive}" Margin="0,0,16,0"
                                       VerticalAlignment="Center" />
+                            <CheckBox Content="Include subdirectories" IsChecked="{Binding IncludeSubdirectories}" Margin="0,0,16,0"
+                                      VerticalAlignment="Center" />
                         </StackPanel>
                         <Button HorizontalAlignment="Right" Content="Start search"
                                 Command="{Binding StartSearchCommand}" Height="32" MinWidth="140" Margin="24,0,0,0"

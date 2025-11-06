@@ -19,6 +19,7 @@ public class MainViewModel : INotifyPropertyChanged
     string _pattern;
     string _startDirectory;
     string _statusMessage = "Ready";
+    bool _includeSubdirectories;
 
     public MainViewModel() : this(new FileSearchService())
     {
@@ -38,6 +39,7 @@ public class MainViewModel : INotifyPropertyChanged
         _pattern = _settings.Pattern;
         _isRegex = _settings.IsRegex;
         _isCaseSensitive = _settings.IsCaseSensitive;
+        _includeSubdirectories = _settings.IncludeSubdirectories;
     }
 
     public ObservableCollection<SearchResult> Results { get; } = new();
@@ -97,6 +99,17 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IncludeSubdirectories
+    {
+        get => _includeSubdirectories;
+        set
+        {
+            _includeSubdirectories = value;
+            OnPropertyChanged();
+            SaveSettings();
+        }
+    }
+
     public bool IsSearching
     {
         get => _isSearching;
@@ -131,6 +144,7 @@ public class MainViewModel : INotifyPropertyChanged
         _settings.Pattern = Pattern;
         _settings.IsRegex = IsRegex;
         _settings.IsCaseSensitive = IsCaseSensitive;
+        _settings.IncludeSubdirectories = IncludeSubdirectories;
         _settings.Save();
     }
 
@@ -151,7 +165,8 @@ public class MainViewModel : INotifyPropertyChanged
             FileMasks = FileMasks,
             Pattern = Pattern,
             IsRegex = IsRegex,
-            IsCaseSensitive = IsCaseSensitive
+            IsCaseSensitive = IsCaseSensitive,
+            IncludeSubdirectories = IncludeSubdirectories
         };
 
         try

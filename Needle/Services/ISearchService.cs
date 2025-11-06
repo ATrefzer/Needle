@@ -14,4 +14,5 @@ public class SearchParameters
     public string Pattern { get; set; } = string.Empty;
     public bool IsRegex { get; set; }
     public bool IsCaseSensitive { get; set; }
+    public bool IncludeSubdirectories { get; set; } = true;
 }

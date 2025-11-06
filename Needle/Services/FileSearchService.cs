@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Needle.Models;
@@ -25,7 +24,7 @@ public class FileSearchService : ISearchService
         }
 
         await Task.Run(async () => { await ExecuteSearchAsync(parameters, onResult, cancellationToken); }
-        );
+            , CancellationToken.None);
     }
 
     static async Task ExecuteSearchAsync(SearchParameters parameters, Action<SearchResult> onResult,
@@ -35,19 +34,19 @@ public class FileSearchService : ISearchService
         var matcher = CreateMatcher(parameters.Pattern, parameters.IsRegex, parameters.IsCaseSensitive);
 
         // Create channel for producer-consumer pattern
+        // Yes, this is overkill.
         var channel = Channel.CreateUnbounded<string>();
 
-        var fileCount = 0;
 
         // Producer: Enumerate files in background
         var producerTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var file in EnumerateFiles(parameters.StartDirectory, masks, cancellationToken))
+                foreach (var file in EnumerateFiles(parameters.StartDirectory, masks, parameters.IncludeSubdirectories,
+                             cancellationToken))
                 {
-                    await channel.Writer.WriteAsync(file, cancellationToken);
-                    Interlocked.Increment(ref fileCount);
+                    await channel.Writer.WriteAsync(file, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -88,7 +87,7 @@ public class FileSearchService : ISearchService
                 {
                     // Skip files that can't be accessed
                 }
-            });
+            }).ConfigureAwait(false);
 
         await producerTask;
     }
@@ -107,34 +106,35 @@ public class FileSearchService : ISearchService
             .ToList();
     }
 
-    static async IAsyncEnumerable<string> EnumerateFiles(string directory, List<string> masks,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+
+    static IEnumerable<string> EnumerateFiles(string directory, List<string> masks, bool includeSubdirectories,
+        CancellationToken cancellationToken)
     {
         var enumerationOptions = new EnumerationOptions
         {
             IgnoreInaccessible = true,
-            RecurseSubdirectories = true,
+            RecurseSubdirectories = includeSubdirectories,
             ReturnSpecialDirectories = false,
             AttributesToSkip = FileAttributes.System
         };
 
-        foreach (var mask in masks)
+        var patterns = masks.Select(mask =>
+
+            // \* because of the Regex.Escape
+            new Regex(
+                "^" + Regex.Escape(mask).Replace(@"\*", ".*").Replace(@"\?", ".") + "$",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled
+            )).ToList();
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var files = Directory.EnumerateFiles(directory, "*", enumerationOptions);
+
+        foreach (var file in files)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            IEnumerable<string> files;
-            try
+            var fileName = Path.GetFileName(file);
+            if (patterns.Any(pattern => pattern.IsMatch(fileName)))
             {
-                files = Directory.EnumerateFiles(directory, mask, enumerationOptions);
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or DirectoryNotFoundException)
-            {
-                continue;
-            }
-
-            foreach (var file in files)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
                 yield return file;
             }
         }
@@ -165,7 +165,7 @@ public class FileSearchService : ISearchService
 
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize,
+            await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize,
                 FileOptions.SequentialScan | FileOptions.Asynchronous);
             using var reader = new StreamReader(stream, true);
 
