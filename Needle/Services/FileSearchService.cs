@@ -31,10 +31,8 @@ public class FileSearchService : ISearchService
         CancellationToken cancellationToken)
     {
         var masks = ParseFileMasks(parameters.FileMasks);
-        var matcher = CreateMatcher(parameters.Pattern, parameters.IsRegex, parameters.IsCaseSensitive);
 
         // Create channel for producer-consumer pattern
-        // Yes, this is overkill.
         var channel = Channel.CreateUnbounded<string>();
 
 
@@ -43,8 +41,7 @@ public class FileSearchService : ISearchService
         {
             try
             {
-                foreach (var file in EnumerateFiles(parameters.StartDirectory, masks, parameters.IncludeSubdirectories,
-                             cancellationToken))
+                foreach (var file in EnumerateFiles(parameters.StartDirectory, masks, parameters.IncludeSubdirectories, cancellationToken))
                 {
                     await channel.Writer.WriteAsync(file, cancellationToken).ConfigureAwait(false);
                 }
@@ -59,6 +56,7 @@ public class FileSearchService : ISearchService
             }
         }, cancellationToken);
 
+
         // Consumer: Process files in parallel as they become available
         await Parallel.ForEachAsync(
             channel.Reader.ReadAllAsync(cancellationToken),
@@ -71,15 +69,12 @@ public class FileSearchService : ISearchService
             {
                 try
                 {
-                    var matches = await SearchInFileAsync(filePath, matcher, ct);
+                  
+                    var matches = await SearchInFileAsync(filePath, parameters.Pattern, parameters.Regex, parameters.IsCaseSensitive, ct);
 
                     if (matches.Count > 0)
                     {
-                        var result = new SearchResult
-                        {
-                            FilePath = filePath,
-                            Matches = matches
-                        };
+                        var result = new SearchResult(parameters, filePath, matches);
                         onResult(result);
                     }
                 }
@@ -87,7 +82,7 @@ public class FileSearchService : ISearchService
                 {
                     // Skip files that can't be accessed
                 }
-            }).ConfigureAwait(false);
+            });
 
         await producerTask;
     }
@@ -140,25 +135,8 @@ public class FileSearchService : ISearchService
         }
     }
 
-    static Func<string, bool> CreateMatcher(string pattern, bool isRegex, bool isCaseSensitive)
-    {
-        if (isRegex)
-        {
-            var options = RegexOptions.Compiled | RegexOptions.Multiline;
-            if (!isCaseSensitive)
-            {
-                options |= RegexOptions.IgnoreCase;
-            }
 
-            var regex = new Regex(pattern, options, TimeSpan.FromSeconds(1));
-            return line => regex.IsMatch(line);
-        }
-
-        var comparison = isCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-        return line => line.Contains(pattern, comparison);
-    }
-
-    static async Task<List<MatchLine>> SearchInFileAsync(string filePath, Func<string, bool> matcher,
+    static async Task<List<MatchLine>> SearchInFileAsync(string filePath, string pattern, Regex? regex, bool isCaseSensitive,
         CancellationToken cancellationToken)
     {
         var matches = new List<MatchLine>();
@@ -176,13 +154,41 @@ public class FileSearchService : ISearchService
                 lineNumber++;
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (matcher(line))
+                if (regex != null)
                 {
-                    matches.Add(new MatchLine
+                    // Regex: capture all matches with positions
+                    var regexMatches = regex.Matches(line);
+
+                    foreach (Match match in regexMatches)
                     {
-                        LineNumber = lineNumber,
-                        Text = line
-                    });
+                        matches.Add(new MatchLine
+                        {
+                            LineNumber = lineNumber,
+                            Text = line,
+                            StartIndex = match.Index,
+                            Length = match.Length,
+                            IsSelected = true
+                        });
+                    }
+                }
+                else
+                {
+                    // Simple string search: find all occurrences
+                    var comparison = isCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                    var index = 0;
+                    
+                    while ((index = line.IndexOf(pattern, index, comparison)) != -1)
+                    {
+                        matches.Add(new MatchLine
+                        {
+                            LineNumber = lineNumber,
+                            Text = line,
+                            StartIndex = index,
+                            Length = pattern.Length,
+                            IsSelected = true
+                        });
+                        index += pattern.Length; // Move past this match
+                    }
                 }
             }
         }

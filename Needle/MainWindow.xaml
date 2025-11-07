@@ -97,14 +97,14 @@
                             <ColumnDefinition Width="*" MinWidth="200" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="Start directory:" Foreground="#444" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="0" Text="Start directory:" Foreground="#444" VerticalAlignment="Center" Width="100"
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="1" Height="26" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center"
                                  Text="{Binding StartDirectory, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Grid.Column="2" Content="..." Width="26" Height="26" Margin="0,0,16,0"
                                 VerticalAlignment="Center" Click="BrowseFolder_Click" ToolTip="Select folder" />
 
-                        <TextBlock Grid.Column="3" Text="File mask:" Foreground="#444" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="3" Text="File mask:" Foreground="#444" VerticalAlignment="Center" 
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="4" Height="26" Padding="6,2" VerticalAlignment="Center"
                                  Text="{Binding FileMasks, UpdateSourceTrigger=PropertyChanged}" />
@@ -115,11 +115,23 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="Text:" Foreground="#444" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="0" Text="Text:" Foreground="#444" VerticalAlignment="Center" Width="100"
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="1" Height="26" Padding="6,2" VerticalAlignment="Center"
                                  VerticalContentAlignment="Center"
                                  Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="Replace with:" Foreground="#444" VerticalAlignment="Center" Width="100"
+                                   Margin="0,0,8,0" FontWeight="SemiBold" />
+                        <TextBox Grid.Column="1" Height="26" Padding="6,2" VerticalAlignment="Center"
+                                 VerticalContentAlignment="Center"
+                                 Text="{Binding ReplacementText, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Margin="0,0,0,8" HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
@@ -127,12 +139,18 @@
                                       VerticalAlignment="Center" />
                             <CheckBox Content="Case sensitive" IsChecked="{Binding IsCaseSensitive}" Margin="0,0,16,0"
                                       VerticalAlignment="Center" />
-                            <CheckBox Content="Include subdirectories" IsChecked="{Binding IncludeSubdirectories}" Margin="0,0,16,0"
+                            <CheckBox Content="Include subdirectories" IsChecked="{Binding IncludeSubdirectories}"
+                                      Margin="0,0,16,0"
                                       VerticalAlignment="Center" />
                         </StackPanel>
-                        <Button HorizontalAlignment="Right" Content="Start search"
-                                Command="{Binding StartSearchCommand}" Height="32" MinWidth="140" Margin="24,0,0,0"
-                                VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="Start search"
+                                    Command="{Binding StartSearchCommand}" Height="32" MinWidth="140" Margin="0,0,8,0"
+                                    VerticalAlignment="Center" />
+                            <Button Content="Replace All"
+                                    Command="{Binding ReplaceCommand}" Height="32" MinWidth="140"
+                                    VerticalAlignment="Center" />
+                        </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
