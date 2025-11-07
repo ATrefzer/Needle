@@ -67,7 +67,7 @@
                                         <TextBlock Text="{Binding LineNumber}" Foreground="#333" FontFamily="Consolas"
                                                    TextAlignment="Right" />
                                     </Border>
-                                    <TextBlock Text="{Binding Text}" Foreground="#222" TextWrapping="Wrap"
+                                    <TextBlock Text="{Binding SafeText}" Foreground="#222" TextWrapping="Wrap"
                                                FontFamily="Consolas" />
                                 </DockPanel>
                             </DataTemplate>
