@@ -18,19 +18,23 @@ public partial class MainWindow : Window
         DataContext = new MainViewModel();
     }
 
-    void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount == 2)
+        if (sender is Border border && border.DataContext is SearchResult result)
         {
-            if (sender is Border { DataContext: SearchResult result })
-            {
-                OpenFileInExplorer(result.FilePath);
-                e.Handled = true;
-            }
+            result.IsExpanded = !result.IsExpanded;
+            e.Handled = true;
         }
+        
+        // if (e.ClickCount == 2)
+        //     if (sender is Border { DataContext: SearchResult result })
+        //     {
+        //         OpenFileInExplorer(result.FilePath);
+        //         e.Handled = true;
+        //     }
     }
 
-    void BrowseFolder_Click(object sender, RoutedEventArgs e)
+    private void BrowseFolder_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog
         {
@@ -39,28 +43,20 @@ public partial class MainWindow : Window
         };
 
         if (dialog.ShowDialog() == true)
-        {
             if (DataContext is MainViewModel viewModel)
-            {
                 viewModel.StartDirectory = dialog.FolderName;
-            }
-        }
     }
 
-    void OpenInNotepadPlusPlus_Click(object sender, RoutedEventArgs e)
+    private void OpenInNotepadPlusPlus_Click(object sender, RoutedEventArgs e)
     {
         if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement border } })
-        {
             // Border.DataContext = MatchLine
             // Border.Tag = SearchResult
             if (border is { DataContext: MatchLine matchLine, Tag: SearchResult searchResult })
-            {
                 OpenFileInNotepadPlusPlus(searchResult.FilePath, matchLine.LineNumber);
-            }
-        }
     }
 
-    void OpenFileInNotepadPlusPlus(string filePath, int lineNumber)
+    private void OpenFileInNotepadPlusPlus(string filePath, int lineNumber)
     {
         try
         {
@@ -101,22 +97,18 @@ public partial class MainWindow : Window
         }
     }
 
-    void OpenFileInExplorer(string filePath)
+    private void OpenFileInExplorer(string filePath)
     {
         try
         {
             if (File.Exists(filePath))
-            {
                 // Opens explorer and selects the file
                 Process.Start("explorer.exe", $"/select,\"{filePath}\"");
-            }
             else
-            {
                 MessageBox.Show($"File not found:\n{filePath}",
                     "Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
-            }
         }
         catch (Exception ex)
         {
@@ -125,5 +117,16 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
+    }
+
+    private void FindInExplorer_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement border } })
+            // Border.DataContext = MatchLine
+            // Border.Tag = SearchResult
+            if (border is { DataContext: MatchLine matchLine, Tag: SearchResult searchResult })
+                OpenFileInExplorer(searchResult.FilePath);
+        
+       
     }
 }

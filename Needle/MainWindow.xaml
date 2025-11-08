@@ -23,59 +23,90 @@
             </Setter>
         </Style>
 
-        <DataTemplate x:Key="SearchResultTemplate" DataType="models:SearchResult">
-            <StackPanel Margin="0,0,0,4">
-                <!-- Header Section -->
-                <Border Background="#ffffff" Padding="6" MouseLeftButtonDown="Header_MouseLeftButtonDown"
-                        BorderBrush="#d0d0d0" BorderThickness="1" CornerRadius="4,4,0,0" HorizontalAlignment="Stretch">
-                    <Grid HorizontalAlignment="Stretch">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="#0078d4" CornerRadius="4" Padding="6,2" Margin="0,0,8,0"
-                                VerticalAlignment="Center">
-                            <TextBlock Text="{Binding MatchCount}" Foreground="White" FontWeight="Bold" />
-                        </Border>
-                        <DockPanel Grid.Column="1" LastChildFill="True" VerticalAlignment="Center" Margin="0"
-                                   HorizontalAlignment="Stretch">
-                            <TextBlock Text="{Binding FileName}" FontWeight="Bold" Foreground="#222"
-                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" DockPanel.Dock="Left" />
-                            <TextBlock Text="  -  " Foreground="#666" DockPanel.Dock="Left" />
-                            <TextBlock Text="{Binding FilePath}" FontSize="11" Foreground="#666" TextWrapping="NoWrap"
-                                       TextTrimming="CharacterEllipsis" />
-                        </DockPanel>
-                    </Grid>
+      <DataTemplate x:Key="SearchResultTemplate" DataType="models:SearchResult">
+    <StackPanel Margin="0,0,0,4">
+        <!-- Header Section - Clickable -->
+        <Border Background="#ffffff" Padding="6" MouseLeftButtonDown="Header_MouseLeftButtonDown"
+                BorderBrush="#d0d0d0" BorderThickness="1" HorizontalAlignment="Stretch"
+                Cursor="Hand">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="CornerRadius" Value="4,4,0,0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsExpanded}" Value="False">
+                            <Setter Property="CornerRadius" Value="4" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid HorizontalAlignment="Stretch">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                
+                <!-- Expand/Collapse Indicator -->
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0"
+                           FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="#666">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="&#xE70D;" /> <!-- ChevronDown -->
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsExpanded}" Value="False">
+                                    <Setter Property="Text" Value="&#xE76C;" /> <!-- ChevronRight -->
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                
+                <Border Grid.Column="1" Background="#0078d4" CornerRadius="4" Padding="6,2" Margin="0,0,8,0"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="{Binding MatchCount}" Foreground="White" FontWeight="Bold" />
                 </Border>
+                <DockPanel Grid.Column="2" LastChildFill="True" VerticalAlignment="Center" Margin="0"
+                           HorizontalAlignment="Stretch">
+                    <TextBlock Text="{Binding FileName}" FontWeight="Bold" Foreground="#222"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" DockPanel.Dock="Left" />
+                    <TextBlock Text="  -  " Foreground="#666" DockPanel.Dock="Left" />
+                    <TextBlock Text="{Binding FilePath}" FontSize="11" Foreground="#666" TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Grid>
+        </Border>
 
-                <!-- Content Section -->
-                <Border BorderBrush="#d0d0d0" BorderThickness="1,0,1,1" Padding="6" Background="#fafafa"
-                        CornerRadius="0,0,4,4" x:Name="ContentBorder">
-                    <ItemsControl ItemsSource="{Binding Matches}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <DockPanel Margin="0,0,0,4">
-                                    <Border Background="#e5e5e5" Padding="4" CornerRadius="3" DockPanel.Dock="Left"
-                                            Margin="0,0,8,0" MinWidth="60"
-                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}">
-                                        <Border.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Open in Notepad++"
-                                                          Click="OpenInNotepadPlusPlus_Click" />
-                                            </ContextMenu>
-                                        </Border.ContextMenu>
-                                        <TextBlock Text="{Binding LineNumber}" Foreground="#333" FontFamily="Consolas"
-                                                   TextAlignment="Right" />
-                                    </Border>
-                                    <TextBlock Text="{Binding Text}" Foreground="#222" TextWrapping="Wrap"
-                                               FontFamily="Consolas" />
-                                </DockPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Border>
-            </StackPanel>
-        </DataTemplate>
+        <!-- Content Section - Only visible when expanded -->
+        <Border BorderBrush="#d0d0d0" BorderThickness="1,0,1,1" Padding="6" Background="#fafafa"
+                CornerRadius="0,0,4,4"
+                Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+            
+            <ItemsControl ItemsSource="{Binding Matches}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel Margin="0,0,0,4">
+                            <Border Background="#e5e5e5" Padding="4" CornerRadius="3" DockPanel.Dock="Left"
+                                    Margin="0,0,8,0" MinWidth="60"
+                                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}">
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Open in Notepad++"
+                                                  Click="OpenInNotepadPlusPlus_Click" />
+                                        <MenuItem Header="Find in Explorer" Click="FindInExplorer_Click"/>
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                                <TextBlock Text="{Binding LineNumber}" Foreground="#333" FontFamily="Consolas"
+                                           TextAlignment="Right" />
+                            </Border>
+                            <TextBlock Text="{Binding SafeText}" Foreground="#222" TextWrapping="Wrap"
+                                       FontFamily="Consolas" />
+                        </DockPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+    </StackPanel>
+</DataTemplate>
     </Window.Resources>
     <Grid>
         <DockPanel>
@@ -98,6 +129,7 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0" Text="Start directory:" Foreground="#444" VerticalAlignment="Center"
+                                   Width="100"
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="1" Height="26" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center"
                                  Text="{Binding StartDirectory, UpdateSourceTrigger=PropertyChanged}" />
@@ -116,10 +148,24 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0" Text="Text:" Foreground="#444" VerticalAlignment="Center"
+                                   Width="100"
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="1" Height="26" Padding="6,2" VerticalAlignment="Center"
                                  VerticalContentAlignment="Center"
                                  Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="Replace with:" Foreground="#444" VerticalAlignment="Center"
+                                   Width="100"
+                                   Margin="0,0,8,0" FontWeight="SemiBold" />
+                        <TextBox Grid.Column="1" Height="26" Padding="6,2" VerticalAlignment="Center"
+                                 VerticalContentAlignment="Center"
+                                 Text="{Binding ReplacementText, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Margin="0,0,0,8" HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
@@ -127,12 +173,18 @@
                                       VerticalAlignment="Center" />
                             <CheckBox Content="Case sensitive" IsChecked="{Binding IsCaseSensitive}" Margin="0,0,16,0"
                                       VerticalAlignment="Center" />
-                            <CheckBox Content="Include subdirectories" IsChecked="{Binding IncludeSubdirectories}" Margin="0,0,16,0"
+                            <CheckBox Content="Include subdirectories" IsChecked="{Binding IncludeSubdirectories}"
+                                      Margin="0,0,16,0"
                                       VerticalAlignment="Center" />
                         </StackPanel>
-                        <Button HorizontalAlignment="Right" Content="Start search"
-                                Command="{Binding StartSearchCommand}" Height="32" MinWidth="140" Margin="24,0,0,0"
-                                VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="Start search"
+                                    Command="{Binding StartSearchCommand}" Height="32" MinWidth="140" Margin="0,0,8,0"
+                                    VerticalAlignment="Center" />
+                            <Button Content="Replace (in result)"
+                                    Command="{Binding ReplaceCommand}" Height="32" MinWidth="140"
+                                    VerticalAlignment="Center" />
+                        </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
@@ -141,12 +193,12 @@
                 <ListView ItemsSource="{Binding Results}" ItemTemplate="{StaticResource SearchResultTemplate}"
                           BorderThickness="0" Background="Transparent"
                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                          ScrollViewer.CanContentScroll="True"
+                          ScrollViewer.CanContentScroll="False"
                           IsTabStop="False" Focusable="False" />
             </Border>
         </DockPanel>
-        <Grid Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}" Background="#80000000"
-              IsHitTestVisible="{Binding IsSearching}">
+        <Grid Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" Background="#80000000"
+              IsHitTestVisible="{Binding IsBusy}">
             <Border Background="#ffffff" Padding="24" CornerRadius="8" Width="420" HorizontalAlignment="Center"
                     VerticalAlignment="Center" BorderBrush="#d0d0d0" BorderThickness="1">
                 <StackPanel>
