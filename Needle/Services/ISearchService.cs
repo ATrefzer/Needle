@@ -16,5 +16,4 @@ public class SearchParameters
     public Regex? Regex { get; set; }
     public bool IsCaseSensitive { get; set; }
     public bool IncludeSubdirectories { get; set; } = true;
-    public string ReplacementText { get; set; } = string.Empty;
 }

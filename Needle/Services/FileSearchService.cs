@@ -7,27 +7,22 @@ namespace Needle.Services;
 
 public class FileSearchService : ISearchService
 {
-    const int MaxDegreeOfParallelism = 8;
-    const int BufferSize = 81920; // 80 KB buffer for file reading
+    private const int MaxDegreeOfParallelism = 8;
+    private const int BufferSize = 81920; // 80 KB buffer for file reading
 
-    public async Task SearchAsync(SearchParameters parameters, Action<SearchResult> onResult,
+    public Task SearchAsync(SearchParameters parameters, Action<SearchResult> onResult,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(parameters.StartDirectory) || !Directory.Exists(parameters.StartDirectory))
-        {
             throw new ArgumentException("Start directory is invalid or does not exist.");
-        }
 
         if (string.IsNullOrWhiteSpace(parameters.Pattern))
-        {
             throw new ArgumentException("Search pattern must not be empty.");
-        }
 
-        await Task.Run(async () => { await ExecuteSearchAsync(parameters, onResult, cancellationToken); }
-            , CancellationToken.None);
+        return Task.Run(() => SearchInternalAsync(parameters, onResult, cancellationToken), cancellationToken);
     }
 
-    static async Task ExecuteSearchAsync(SearchParameters parameters, Action<SearchResult> onResult,
+    private async Task SearchInternalAsync(SearchParameters parameters, Action<SearchResult> onResult,
         CancellationToken cancellationToken)
     {
         var masks = ParseFileMasks(parameters.FileMasks);
@@ -41,10 +36,9 @@ public class FileSearchService : ISearchService
         {
             try
             {
-                foreach (var file in EnumerateFiles(parameters.StartDirectory, masks, parameters.IncludeSubdirectories, cancellationToken))
-                {
+                foreach (var file in EnumerateFiles(parameters.StartDirectory, masks, parameters.IncludeSubdirectories,
+                             cancellationToken))
                     await channel.Writer.WriteAsync(file, cancellationToken).ConfigureAwait(false);
-                }
             }
             catch (OperationCanceledException)
             {
@@ -66,33 +60,35 @@ public class FileSearchService : ISearchService
                 CancellationToken = cancellationToken
             },
             async (filePath, ct) =>
-            {
-                try
-                {
-                  
-                    var matches = await SearchInFileAsync(filePath, parameters.Pattern, parameters.Regex, parameters.IsCaseSensitive, ct);
-
-                    if (matches.Count > 0)
-                    {
-                        var result = new SearchResult(parameters, filePath, matches);
-                        onResult(result);
-                    }
-                }
-                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-                {
-                    // Skip files that can't be accessed
-                }
-            });
+                await ProcessSingleFileAsync(filePath, parameters, onResult, ct).ConfigureAwait(false)
+        );
 
         await producerTask;
     }
 
-    static List<string> ParseFileMasks(string fileMasks)
+    private async Task ProcessSingleFileAsync(string filePath, SearchParameters parameters,
+        Action<SearchResult> onResult, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(fileMasks))
+        try
         {
-            return ["*.*"];
+            var matches = await SearchInFileAsync(filePath, parameters.Pattern, parameters.Regex,
+                parameters.IsCaseSensitive, cancellationToken);
+
+            if (matches.Count > 0)
+            {
+                var result = new SearchResult(parameters, filePath, matches);
+                onResult(result);
+            }
         }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // Skip files that can't be accessed
+        }
+    }
+
+    private static List<string> ParseFileMasks(string fileMasks)
+    {
+        if (string.IsNullOrWhiteSpace(fileMasks)) return ["*.*"];
 
         return fileMasks
             .Split([';', ',', '|'], StringSplitOptions.RemoveEmptyEntries)
@@ -102,7 +98,7 @@ public class FileSearchService : ISearchService
     }
 
 
-    static IEnumerable<string> EnumerateFiles(string directory, List<string> masks, bool includeSubdirectories,
+    private static IEnumerable<string> EnumerateFiles(string directory, List<string> masks, bool includeSubdirectories,
         CancellationToken cancellationToken)
     {
         var enumerationOptions = new EnumerationOptions
@@ -128,22 +124,21 @@ public class FileSearchService : ISearchService
         foreach (var file in files)
         {
             var fileName = Path.GetFileName(file);
-            if (patterns.Any(pattern => pattern.IsMatch(fileName)))
-            {
-                yield return file;
-            }
+            if (patterns.Any(pattern => pattern.IsMatch(fileName))) yield return file;
         }
     }
 
 
-    static async Task<List<MatchLine>> SearchInFileAsync(string filePath, string pattern, Regex? regex, bool isCaseSensitive,
+    private static async Task<List<MatchLine>> SearchInFileAsync(string filePath, string pattern, Regex? regex,
+        bool isCaseSensitive,
         CancellationToken cancellationToken)
     {
         var matches = new List<MatchLine>();
 
         try
         {
-            await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize,
+            await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+                BufferSize,
                 FileOptions.SequentialScan | FileOptions.Asynchronous);
             using var reader = new StreamReader(stream, true);
 
@@ -160,7 +155,6 @@ public class FileSearchService : ISearchService
                     var regexMatches = regex.Matches(line);
 
                     foreach (Match match in regexMatches)
-                    {
                         matches.Add(new MatchLine
                         {
                             LineNumber = lineNumber,
@@ -169,14 +163,13 @@ public class FileSearchService : ISearchService
                             Length = match.Length,
                             IsSelected = true
                         });
-                    }
                 }
                 else
                 {
                     // Simple string search: find all occurrences
                     var comparison = isCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
                     var index = 0;
-                    
+
                     while ((index = line.IndexOf(pattern, index, comparison)) != -1)
                     {
                         matches.Add(new MatchLine

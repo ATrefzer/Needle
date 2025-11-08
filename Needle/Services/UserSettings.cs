@@ -5,7 +5,7 @@ namespace Needle.Services;
 
 public class UserSettings
 {
-    static readonly string SettingsFilePath = Path.Combine(
+    private static readonly string SettingsFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Needle",
         "settings.json"
@@ -41,10 +41,7 @@ public class UserSettings
         try
         {
             var directory = Path.GetDirectoryName(SettingsFilePath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
 
             var json = JsonSerializer.Serialize(this, new JsonSerializerOptions
             {
