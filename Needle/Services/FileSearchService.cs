@@ -77,8 +77,7 @@ public class FileSearchService : ISearchService
     {
         try
         {
-            var matches = await SearchInFileAsync(filePath, parameters.Pattern, parameters.Regex,
-                parameters.IsCaseSensitive, cancellationToken);
+            var matches = await SearchInFileAsync(filePath, parameters, cancellationToken);
 
             if (matches.Count > 0)
             {
@@ -141,9 +140,7 @@ public class FileSearchService : ISearchService
     }
 
 
-    private static async Task<List<MatchLine>> SearchInFileAsync(string filePath, string pattern, Regex? regex,
-        bool isCaseSensitive,
-        CancellationToken cancellationToken)
+    private static async Task<List<MatchLine>> SearchInFileAsync(string filePath, SearchParameters parameters, CancellationToken cancellationToken)
     {
         var matches = new List<MatchLine>();
 
@@ -161,10 +158,10 @@ public class FileSearchService : ISearchService
                 lineNumber++;
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (regex != null)
+                if (parameters.Regex != null)
                 {
                     // Regex: capture all matches with positions
-                    var regexMatches = regex.Matches(line);
+                    var regexMatches = parameters.Regex.Matches(line);
 
                     foreach (Match match in regexMatches)
                     {
@@ -180,8 +177,9 @@ public class FileSearchService : ISearchService
                 }
                 else
                 {
+                    var pattern = parameters.Pattern;
                     // Simple string search: find all occurrences
-                    var comparison = isCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                    var comparison = parameters.IsCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
                     var index = 0;
 
                     while ((index = line.IndexOf(pattern, index, comparison)) != -1)
