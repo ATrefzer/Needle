@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Needle.Models;
+using Needle.Resources;
 using Needle.ViewModels;
 
 namespace Needle;
@@ -15,36 +16,36 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Loaded += (sender, e) => InitFocusControl.Focus();
         DataContext = new MainViewModel();
     }
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is Border border && border.DataContext is SearchResult result)
+        if (sender is Border { DataContext: SearchResult result })
         {
             result.IsExpanded = !result.IsExpanded;
             e.Handled = true;
         }
-        
-        // if (e.ClickCount == 2)
-        //     if (sender is Border { DataContext: SearchResult result })
-        //     {
-        //         OpenFileInExplorer(result.FilePath);
-        //         e.Handled = true;
-        //     }
     }
 
     private void BrowseFolder_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Select start directory",
+            Title = Strings.Title_SelectStartDirectory,
             InitialDirectory = (DataContext as MainViewModel)?.StartDirectory ?? string.Empty
         };
 
-        if (dialog.ShowDialog() == true)
-            if (DataContext is MainViewModel viewModel)
-                viewModel.StartDirectory = dialog.FolderName;
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.StartDirectory = dialog.FolderName;
+        }
     }
 
     private void OpenInNotepadPlusPlus_Click(object sender, RoutedEventArgs e)
@@ -52,8 +53,12 @@ public partial class MainWindow : Window
         if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement border } })
             // Border.DataContext = MatchLine
             // Border.Tag = SearchResult
+        {
             if (border is { DataContext: MatchLine matchLine, Tag: SearchResult searchResult })
+            {
                 OpenFileInNotepadPlusPlus(searchResult.FilePath, matchLine.LineNumber);
+            }
+        }
     }
 
     private void OpenFileInNotepadPlusPlus(string filePath, int lineNumber)
@@ -62,10 +67,8 @@ public partial class MainWindow : Window
         {
             if (!File.Exists(filePath))
             {
-                MessageBox.Show($"File not found:\n{filePath}",
-                    "Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                MessageBox.Show(string.Format(Strings.Msg_FileNotFound, filePath),
+                    Strings.Title_Error, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -81,19 +84,13 @@ public partial class MainWindow : Window
         }
         catch (Win32Exception)
         {
-            // Notepad++ not found in PATH
-            MessageBox.Show("Notepad++ is not installed or not found in the system PATH.\n\n" +
-                            "Please install Notepad++ or add it to your PATH environment variable.",
-                "Notepad++ Not Found",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            MessageBox.Show(Strings.Msg_NotepadPlusPlusNotFound, Strings.Title_NotepadPlusPlusNotFound,
+                MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error opening file in Notepad++:\n{ex.Message}",
-                "Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            MessageBox.Show(string.Format(Strings.Msg_OpenNotepadPlusPlusError, ex.Message),
+                Strings.Title_Error, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -102,31 +99,34 @@ public partial class MainWindow : Window
         try
         {
             if (File.Exists(filePath))
-                // Opens explorer and selects the file
+            {
                 Process.Start("explorer.exe", $"/select,\"{filePath}\"");
+            }
             else
-                MessageBox.Show($"File not found:\n{filePath}",
-                    "Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+            {
+                MessageBox.Show(string.Format(Strings.Msg_FileNotFound, filePath),
+                    Strings.Title_Error, MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error opening explorer:\n{ex.Message}",
-                "Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            MessageBox.Show(string.Format(Strings.Msg_OpenInExplorerError, ex.Message),
+                Strings.Title_Error, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void FindInExplorer_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement border } })
-            // Border.DataContext = MatchLine
-            // Border.Tag = SearchResult
-            if (border is { DataContext: MatchLine matchLine, Tag: SearchResult searchResult })
-                OpenFileInExplorer(searchResult.FilePath);
-        
-       
+        // Border.DataContext = MatchLine
+        // Border.Tag = SearchResult
+        if (sender is not MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement border } })
+        {
+            return;
+        }
+
+        if (border is { DataContext: MatchLine matchLine, Tag: SearchResult searchResult })
+        {
+            OpenFileInExplorer(searchResult.FilePath);
+        }
     }
 }

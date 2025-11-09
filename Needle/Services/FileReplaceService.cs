@@ -55,7 +55,10 @@ public class FileReplaceService : IReplaceService
 
         // Only process selected matches
         var selectedMatches = searchResult.Matches.Where(m => m.IsSelected).ToList();
-        if (selectedMatches.Count == 0) return;
+        if (selectedMatches.Count == 0)
+        {
+            return;
+        }
 
         try
         {
@@ -104,7 +107,10 @@ public class FileReplaceService : IReplaceService
         foreach (var lineGroup in matchesByLine)
         {
             var lineIndex = lineGroup.Key - 1; // Convert to 0-based index
-            if (lineIndex < 0 || lineIndex >= lines.Length) continue;
+            if (lineIndex < 0 || lineIndex >= lines.Length)
+            {
+                continue;
+            }
 
             var originalLine = lines[lineIndex];
 
@@ -116,11 +122,15 @@ public class FileReplaceService : IReplaceService
             var regex = searchResult.Parameters.Regex;
             string newLine;
             if (regex != null)
+            {
                 newLine = ReplaceMultipleRegexInLine(originalLine, sortedMatches,
                     regex, replacementText);
+            }
             else
+            {
                 newLine = ReplaceMultipleInLine(originalLine, sortedMatches,
                     replacementText);
+            }
 
 
             lines[lineIndex] = newLine;
@@ -139,7 +149,9 @@ public class FileReplaceService : IReplaceService
         string replacement)
     {
         if (sortedMatches.Count == 0)
+        {
             return line;
+        }
 
         // Calculate final string length
         var lengthDelta = replacement.Length - sortedMatches[0].Length;
@@ -155,7 +167,9 @@ public class FileReplaceService : IReplaceService
             foreach (var match in state.sortedMatches)
             {
                 if (match.StartIndex < 0 || match.StartIndex + match.Length > sourceSpan.Length)
+                {
                     continue;
+                }
 
                 // Copy everything before the match
                 var beforeLength = match.StartIndex - sourcePos;
@@ -174,7 +188,10 @@ public class FileReplaceService : IReplaceService
             }
 
             // Copy remaining text after last match
-            if (sourcePos < sourceSpan.Length) sourceSpan.Slice(sourcePos).CopyTo(span.Slice(destPos));
+            if (sourcePos < sourceSpan.Length)
+            {
+                sourceSpan.Slice(sourcePos).CopyTo(span.Slice(destPos));
+            }
         });
     }
 
@@ -186,7 +203,9 @@ public class FileReplaceService : IReplaceService
         string replacement)
     {
         if (sortedMatches.Count == 0)
+        {
             return line;
+        }
 
         // First pass: compute all replacements
         var replacements = new List<(int startIndex, int length, string replacedText)>();
@@ -195,7 +214,9 @@ public class FileReplaceService : IReplaceService
         foreach (var matchLine in sortedMatches)
         {
             if (matchLine.StartIndex < 0 || matchLine.StartIndex + matchLine.Length > line.Length)
+            {
                 continue;
+            }
 
             // Match on the original line at the exact position
             var match = regex.Match(line, matchLine.StartIndex, matchLine.Length);
@@ -210,7 +231,9 @@ public class FileReplaceService : IReplaceService
         }
 
         if (replacements.Count == 0)
+        {
             return line;
+        }
 
         // Second pass: build the new string with all replacements
         var finalLength = line.Length + totalLengthDelta;
@@ -240,7 +263,10 @@ public class FileReplaceService : IReplaceService
             }
 
             // Copy remaining text after last match
-            if (sourcePos < sourceSpan.Length) sourceSpan.Slice(sourcePos).CopyTo(span.Slice(destPos));
+            if (sourcePos < sourceSpan.Length)
+            {
+                sourceSpan.Slice(sourcePos).CopyTo(span.Slice(destPos));
+            }
         });
     }
 }

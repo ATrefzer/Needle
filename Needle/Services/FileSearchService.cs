@@ -14,10 +14,14 @@ public class FileSearchService : ISearchService
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(parameters.StartDirectory) || !Directory.Exists(parameters.StartDirectory))
+        {
             throw new ArgumentException("Start directory is invalid or does not exist.");
+        }
 
         if (string.IsNullOrWhiteSpace(parameters.Pattern))
+        {
             throw new ArgumentException("Search pattern must not be empty.");
+        }
 
         return Task.Run(() => SearchInternalAsync(parameters, onResult, cancellationToken), cancellationToken);
     }
@@ -38,7 +42,9 @@ public class FileSearchService : ISearchService
             {
                 foreach (var file in EnumerateFiles(parameters.StartDirectory, masks, parameters.IncludeSubdirectories,
                              cancellationToken))
+                {
                     await channel.Writer.WriteAsync(file, cancellationToken).ConfigureAwait(false);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -88,7 +94,10 @@ public class FileSearchService : ISearchService
 
     private static List<string> ParseFileMasks(string fileMasks)
     {
-        if (string.IsNullOrWhiteSpace(fileMasks)) return ["*.*"];
+        if (string.IsNullOrWhiteSpace(fileMasks))
+        {
+            return ["*.*"];
+        }
 
         return fileMasks
             .Split([';', ',', '|'], StringSplitOptions.RemoveEmptyEntries)
@@ -124,7 +133,10 @@ public class FileSearchService : ISearchService
         foreach (var file in files)
         {
             var fileName = Path.GetFileName(file);
-            if (patterns.Any(pattern => pattern.IsMatch(fileName))) yield return file;
+            if (patterns.Any(pattern => pattern.IsMatch(fileName)))
+            {
+                yield return file;
+            }
         }
     }
 
@@ -155,6 +167,7 @@ public class FileSearchService : ISearchService
                     var regexMatches = regex.Matches(line);
 
                     foreach (Match match in regexMatches)
+                    {
                         matches.Add(new MatchLine
                         {
                             LineNumber = lineNumber,
@@ -163,6 +176,7 @@ public class FileSearchService : ISearchService
                             Length = match.Length,
                             IsSelected = true
                         });
+                    }
                 }
                 else
                 {

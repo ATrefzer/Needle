@@ -1,0 +1,144 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<root>
+
+
+    <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata"
+                id="root"
+                xmlns="">
+        <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+        <xsd:element name="root" msdata:IsDataSet="true">
+            <xsd:complexType>
+                <xsd:choice maxOccurs="unbounded">
+                    <xsd:element name="metadata">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0"/>
+                            </xsd:sequence>
+                            <xsd:attribute name="name" use="required" type="xsd:string"/>
+                            <xsd:attribute name="type" type="xsd:string"/>
+                            <xsd:attribute name="mimetype" type="xsd:string"/>
+                            <xsd:attribute ref="xml:space"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="assembly">
+                        <xsd:complexType>
+                            <xsd:attribute name="alias" type="xsd:string"/>
+                            <xsd:attribute name="name" type="xsd:string"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="data">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2"/>
+                            </xsd:sequence>
+                            <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1"/>
+                            <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3"/>
+                            <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4"/>
+                            <xsd:attribute ref="xml:space"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="resheader">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                            </xsd:sequence>
+                            <xsd:attribute name="name" type="xsd:string" use="required"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                </xsd:choice>
+            </xsd:complexType>
+        </xsd:element>
+    </xsd:schema>
+
+
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral,
+            PublicKeyToken=b77a5c561934e089
+        </value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral,
+            PublicKeyToken=b77a5c561934e089
+        </value>
+    </resheader>
+    <data name="Tooltip_Regex" xml:space="preserve">
+        <value>Example
+Text: (\w+)@(\w+\.com)
+Replace with: Email: $1 at domain $2
+Input: john@example.com
+Output: Email: john at domain example.com</value>
+    </data>
+    <data name="Menu_OpenWithNotepadPlusPlus" xml:space="preserve">
+        <value>Open in Notepad++</value>
+    </data>
+    <data name="Title_Needle" xml:space="preserve">
+        <value>Needle - File Search</value>
+    </data>
+    <data name="Label_Text" xml:space="preserve">
+        <value>Text:</value>
+    </data>
+    <data name="Label_ReplaceWith" xml:space="preserve">
+        <value>Replace with:</value>
+    </data>
+    <data name="Title_SelectStartDirectory" xml:space="preserve">
+        <value>Select start directory</value>
+    </data>
+    <data name="Label_StartDirectory" xml:space="preserve">
+        <value>Start directory:</value>
+    </data>
+    <data name="Label_Filemask" xml:space="preserve">
+        <value>File mask:</value>
+    </data>
+    <data name="Label_Busy" xml:space="preserve">
+        <value>Busy ...</value>
+    </data>
+    <data name="Label_StartSearch" xml:space="preserve">
+        <value>Start search</value>
+    </data>
+    <data name="Label_Replace" xml:space="preserve">
+        <value>Replace (in result)</value>
+    </data>
+    <data name="Label_Regex" xml:space="preserve">
+        <value>Regex</value>
+    </data>
+    <data name="Label_CaseSensitive" xml:space="preserve">
+        <value>Case sensitive</value>
+    </data>
+    <data name="Label_IncludeSubDirectories" xml:space="preserve">
+        <value>Include subdirectories</value>
+    </data>
+    <data name="Title_Error" xml:space="preserve">
+        <value>Error</value>
+    </data>
+    <data name="Title_NotepadPlusPlusNotFound" xml:space="preserve">
+        <value>Notepad++ Not Found</value>
+    </data>
+    <data name="Msg_NotepadPlusPlusNotFound" xml:space="preserve">
+        <value>Notepad++ is not installed or not found in the system PATH.
+
+Please install Notepad++ or add it to your PATH environment variable.</value>
+    </data>
+    <data name="Msg_OpenNotepadPlusPlusError" xml:space="preserve">
+        <value>Error opening file in Notepad++:
+{0}</value>
+    </data>
+    <data name="Msg_FileNotFound" xml:space="preserve">
+        <value>File not found:
+{0}</value>
+    </data>
+    <data name="Msg_OpenInExplorerError" xml:space="preserve">
+        <value>Error opening explorer:
+{0}</value>
+    </data>
+    <data name="Menu_OpenInExplorer" xml:space="preserve">
+        <value>Find in Explorer</value>
+    </data>
+</root>

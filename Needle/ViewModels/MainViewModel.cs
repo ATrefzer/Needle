@@ -122,7 +122,11 @@ public class MainViewModel : INotifyPropertyChanged
         get => _isBusy;
         set
         {
-            if (value == _isBusy) return;
+            if (value == _isBusy)
+            {
+                return;
+            }
+
             _isBusy = value;
             OnPropertyChanged();
 
@@ -221,7 +225,10 @@ public class MainViewModel : INotifyPropertyChanged
     private Regex CreateRegex()
     {
         var options = RegexOptions.Compiled | RegexOptions.Multiline;
-        if (!IsCaseSensitive) options |= RegexOptions.IgnoreCase;
+        if (!IsCaseSensitive)
+        {
+            options |= RegexOptions.IgnoreCase;
+        }
 
         return new Regex(Pattern, options, TimeSpan.FromSeconds(1));
     }

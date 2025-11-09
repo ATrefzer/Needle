@@ -2,11 +2,13 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:Needle.Models"
+        xmlns:resources="clr-namespace:Needle.Resources"
         Icon="/needle.png"
-        Title="Needle - File Search" Height="500" Width="800" MinWidth="1000" MinHeight="600" Background="#f3f3f3"
+        Title="{x:Static resources:Strings.Title_Needle}" Height="500" Width="800" MinWidth="1000" MinHeight="600"
+        Background="#f3f3f3"
         FontFamily="Segoe UI" FontSize="13">
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
         <Style TargetType="ListViewItem">
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -23,90 +25,92 @@
             </Setter>
         </Style>
 
-      <DataTemplate x:Key="SearchResultTemplate" DataType="models:SearchResult">
-    <StackPanel Margin="0,0,0,4">
-        <!-- Header Section - Clickable -->
-        <Border Background="#ffffff" Padding="6" MouseLeftButtonDown="Header_MouseLeftButtonDown"
-                BorderBrush="#d0d0d0" BorderThickness="1" HorizontalAlignment="Stretch"
-                Cursor="Hand">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="CornerRadius" Value="4,4,0,0" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsExpanded}" Value="False">
-                            <Setter Property="CornerRadius" Value="4" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <Grid HorizontalAlignment="Stretch">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                
-                <!-- Expand/Collapse Indicator -->
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0"
-                           FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="#666">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="&#xE70D;" /> <!-- ChevronDown -->
+        <DataTemplate x:Key="SearchResultTemplate" DataType="models:SearchResult">
+            <StackPanel Margin="0,0,0,4">
+                <!-- Header Section - Clickable -->
+                <Border Background="#ffffff" Padding="6" MouseLeftButtonDown="Header_MouseLeftButtonDown"
+                        BorderBrush="#d0d0d0" BorderThickness="1" HorizontalAlignment="Stretch"
+                        Cursor="Hand">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="4,4,0,0" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsExpanded}" Value="False">
-                                    <Setter Property="Text" Value="&#xE76C;" /> <!-- ChevronRight -->
+                                    <Setter Property="CornerRadius" Value="4" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-                
-                <Border Grid.Column="1" Background="#0078d4" CornerRadius="4" Padding="6,2" Margin="0,0,8,0"
-                        VerticalAlignment="Center">
-                    <TextBlock Text="{Binding MatchCount}" Foreground="White" FontWeight="Bold" />
-                </Border>
-                <DockPanel Grid.Column="2" LastChildFill="True" VerticalAlignment="Center" Margin="0"
-                           HorizontalAlignment="Stretch">
-                    <TextBlock Text="{Binding FileName}" FontWeight="Bold" Foreground="#222"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" DockPanel.Dock="Left" />
-                    <TextBlock Text="  -  " Foreground="#666" DockPanel.Dock="Left" />
-                    <TextBlock Text="{Binding FilePath}" FontSize="11" Foreground="#666" TextWrapping="NoWrap"
-                               TextTrimming="CharacterEllipsis" />
-                </DockPanel>
-            </Grid>
-        </Border>
+                    </Border.Style>
+                    <Grid HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-        <!-- Content Section - Only visible when expanded -->
-        <Border BorderBrush="#d0d0d0" BorderThickness="1,0,1,1" Padding="6" Background="#fafafa"
-                CornerRadius="0,0,4,4"
-                Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
-            
-            <ItemsControl ItemsSource="{Binding Matches}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <DockPanel Margin="0,0,0,4">
-                            <Border Background="#e5e5e5" Padding="4" CornerRadius="3" DockPanel.Dock="Left"
-                                    Margin="0,0,8,0" MinWidth="60"
-                                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}">
-                                <Border.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="Open in Notepad++"
-                                                  Click="OpenInNotepadPlusPlus_Click" />
-                                        <MenuItem Header="Find in Explorer" Click="FindInExplorer_Click"/>
-                                    </ContextMenu>
-                                </Border.ContextMenu>
-                                <TextBlock Text="{Binding LineNumber}" Foreground="#333" FontFamily="Consolas"
-                                           TextAlignment="Right" />
-                            </Border>
-                            <TextBlock Text="{Binding SafeText}" Foreground="#222" TextWrapping="Wrap"
-                                       FontFamily="Consolas" />
+                        <!-- Expand / Collapse Indicator (Microsoft Design Language 2) -->
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="#666">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="&#xE70D;" /> <!-- ChevronDown -->
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsExpanded}" Value="False">
+                                            <Setter Property="Text" Value="&#xE76C;" /> <!-- ChevronRight -->
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Border Grid.Column="1" Background="#0078d4" CornerRadius="4" Padding="6,2" Margin="0,0,8,0"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="{Binding MatchCount}" Foreground="White" FontWeight="Bold" />
+                        </Border>
+                        <DockPanel Grid.Column="2" LastChildFill="True" VerticalAlignment="Center" Margin="0"
+                                   HorizontalAlignment="Stretch">
+                            <TextBlock Text="{Binding FileName}" FontWeight="Bold" Foreground="#222"
+                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" DockPanel.Dock="Left" />
+                            <TextBlock Text="  -  " Foreground="#666" DockPanel.Dock="Left" />
+                            <TextBlock Text="{Binding FilePath}" FontSize="11" Foreground="#666" TextWrapping="NoWrap"
+                                       TextTrimming="CharacterEllipsis" />
                         </DockPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </Border>
-    </StackPanel>
-</DataTemplate>
+                    </Grid>
+                </Border>
+
+                <!-- Content Section - Only visible when expanded -->
+                <Border BorderBrush="#d0d0d0" BorderThickness="1,0,1,1" Padding="6" Background="#fafafa"
+                        CornerRadius="0,0,4,4"
+                        Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
+
+                    <ItemsControl ItemsSource="{Binding Matches}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,4">
+                                    <Border Background="#e5e5e5" Padding="4" CornerRadius="3" DockPanel.Dock="Left"
+                                            Margin="0,0,8,0" MinWidth="60"
+                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem
+                                                    Header="{x:Static resources:Strings.Menu_OpenWithNotepadPlusPlus}"
+                                                    Click="OpenInNotepadPlusPlus_Click" />
+                                                <MenuItem Header="{x:Static resources:Strings.Menu_OpenInExplorer}"
+                                                          Click="FindInExplorer_Click" />
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <TextBlock Text="{Binding LineNumber}" Foreground="#333" FontFamily="Consolas"
+                                                   TextAlignment="Right" />
+                                    </Border>
+                                    <TextBlock Text="{Binding SafeText}" Foreground="#222" TextWrapping="Wrap"
+                                               FontFamily="Consolas" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
     <Grid>
         <DockPanel>
@@ -128,7 +132,8 @@
                             <ColumnDefinition Width="*" MinWidth="200" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="Start directory:" Foreground="#444" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="0" Text="{x:Static resources:Strings.Label_StartDirectory}"
+                                   Foreground="#444" VerticalAlignment="Center"
                                    Width="100"
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="1" Height="26" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center"
@@ -136,7 +141,8 @@
                         <Button Grid.Column="2" Content="..." Width="26" Height="26" Margin="0,0,16,0"
                                 VerticalAlignment="Center" Click="BrowseFolder_Click" ToolTip="Select folder" />
 
-                        <TextBlock Grid.Column="3" Text="File mask:" Foreground="#444" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="3" Text="{x:Static resources:Strings.Label_Filemask}" Foreground="#444"
+                                   VerticalAlignment="Center"
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="4" Height="26" Padding="6,2" VerticalAlignment="Center"
                                  Text="{Binding FileMasks, UpdateSourceTrigger=PropertyChanged}" />
@@ -147,11 +153,13 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="Text:" Foreground="#444" VerticalAlignment="Center"
-                                   Width="100"
+                        <TextBlock Grid.Column="0" Text="{x:Static resources:Strings.Label_Text}" Foreground="#444"
+                                   VerticalAlignment="Center"
+                                   Width="100" 
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="1" Height="26" Padding="6,2" VerticalAlignment="Center"
                                  VerticalContentAlignment="Center"
+                                 x:Name="InitFocusControl"
                                  Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Margin="0,0,0,12">
@@ -160,7 +168,8 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="Replace with:" Foreground="#444" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="0" Text="{x:Static resources:Strings.Label_ReplaceWith}"
+                                   Foreground="#444" VerticalAlignment="Center"
                                    Width="100"
                                    Margin="0,0,8,0" FontWeight="SemiBold" />
                         <TextBox Grid.Column="1" Height="26" Padding="6,2" VerticalAlignment="Center"
@@ -169,19 +178,23 @@
                     </Grid>
                     <Grid Margin="0,0,0,8" HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <CheckBox Content="Regex" IsChecked="{Binding IsRegex}" Margin="0,0,16,0"
+                            <CheckBox Content="{x:Static resources:Strings.Label_Regex}" IsChecked="{Binding IsRegex}"
+                                      Margin="0,0,16,0"
+                                      VerticalAlignment="Center" ToolTip="{x:Static resources:Strings.Tooltip_Regex}" />
+                            <CheckBox Content="{x:Static resources:Strings.Label_CaseSensitive}"
+                                      IsChecked="{Binding IsCaseSensitive}" Margin="0,0,16,0"
                                       VerticalAlignment="Center" />
-                            <CheckBox Content="Case sensitive" IsChecked="{Binding IsCaseSensitive}" Margin="0,0,16,0"
-                                      VerticalAlignment="Center" />
-                            <CheckBox Content="Include subdirectories" IsChecked="{Binding IncludeSubdirectories}"
+                            <CheckBox Content="{x:Static resources:Strings.Label_IncludeSubDirectories}"
+                                      IsChecked="{Binding IncludeSubdirectories}"
                                       Margin="0,0,16,0"
                                       VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Start search"
+                            <Button Content="{x:Static resources:Strings.Label_StartSearch}"
+                                    IsDefault="True"
                                     Command="{Binding StartSearchCommand}" Height="32" MinWidth="140" Margin="0,0,8,0"
                                     VerticalAlignment="Center" />
-                            <Button Content="Replace (in result)"
+                            <Button Content="{x:Static resources:Strings.Label_Replace}"
                                     Command="{Binding ReplaceCommand}" Height="32" MinWidth="140"
                                     VerticalAlignment="Center" />
                         </StackPanel>
@@ -197,14 +210,13 @@
                           IsTabStop="False" Focusable="False" />
             </Border>
         </DockPanel>
-        <Grid Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" Background="#80000000"
+        <Grid Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" Background="#80000000"
               IsHitTestVisible="{Binding IsBusy}">
             <Border Background="#ffffff" Padding="24" CornerRadius="8" Width="420" HorizontalAlignment="Center"
                     VerticalAlignment="Center" BorderBrush="#d0d0d0" BorderThickness="1">
                 <StackPanel>
-                    <TextBlock Text="Searching ..." FontSize="16" FontWeight="Bold" Foreground="#222" />
-                    <TextBlock Text="{Binding Pattern}" Margin="0,6,0,0" Foreground="#555"
-                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Static resources:Strings.Label_Busy}" FontSize="16" FontWeight="Bold"
+                               Foreground="#222" />
                     <ProgressBar IsIndeterminate="True" Height="10" Margin="0,20,0,0" />
                     <Button Content="Cancel" Command="{Binding CancelSearchCommand}" HorizontalAlignment="Right"
                             Margin="0,18,0,0" MinWidth="120" />

@@ -18,7 +18,10 @@ public class MatchLine
 
         var prefix = "(truncated) ... ";
         var postfix = string.Empty;
-        if (length != available) postfix = " ...";
+        if (length != available)
+        {
+            postfix = " ...";
+        }
 
         var truncated = Text.AsSpan(StartIndex, length);
         return string.Concat(prefix, truncated, postfix);

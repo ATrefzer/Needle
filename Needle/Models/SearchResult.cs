@@ -7,6 +7,8 @@ namespace Needle.Models;
 
 public class SearchResult : INotifyPropertyChanged
 {
+    private bool _isExpanded;
+
     public SearchResult(SearchParameters parameters, string filePath, IReadOnlyList<MatchLine> matches)
     {
         Parameters = parameters;
@@ -23,12 +25,15 @@ public class SearchResult : INotifyPropertyChanged
     ///     Used search parameters for this search result.
     /// </summary>
     public SearchParameters Parameters { get; }
-    
-    private bool _isExpanded = false;
+
     public bool IsExpanded
     {
         get => _isExpanded;
-        set { _isExpanded = value; OnPropertyChanged(); }
+        set
+        {
+            _isExpanded = value;
+            OnPropertyChanged();
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -37,5 +42,4 @@ public class SearchResult : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
-    
 }
