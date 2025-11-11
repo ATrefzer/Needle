@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Needle.Services;
 
 namespace Needle.Models;
@@ -9,15 +10,18 @@ public class SearchResult : INotifyPropertyChanged
 {
     private bool _isExpanded;
 
-    public SearchResult(SearchParameters parameters, string filePath, IReadOnlyList<MatchLine> matches)
+    public SearchResult(SearchParameters parameters, string filePath, IReadOnlyList<MatchLine> matches,
+        Encoding encoding)
     {
         Parameters = parameters;
         FilePath = filePath;
         Matches = matches;
+        Encoding = encoding;
     }
 
     public string FilePath { get; }
     public IReadOnlyList<MatchLine> Matches { get; }
+    public Encoding Encoding { get; }
     public int MatchCount => Matches?.Count ?? 0;
     public string FileName => Path.GetFileName(FilePath);
 

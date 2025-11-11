@@ -1,0 +1,12 @@
+﻿TODO
+
+- Replacement loads whole file! This does not work for large files.
+- Add fast Zip search for large files
+- Add multiline support for regex
+
+
+- Add safe mechanism when writing files.
+	- Backup files
+	- Write to temporary file
+
+

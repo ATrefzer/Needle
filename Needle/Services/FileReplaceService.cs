@@ -138,7 +138,7 @@ public class FileReplaceService : IReplaceService
         }
 
         // Write back to file
-        await File.WriteAllLinesAsync(searchResult.FilePath, lines, new UTF8Encoding(false), cancellationToken);
+        await File.WriteAllLinesAsync(searchResult.FilePath, lines, searchResult.Encoding, cancellationToken);
 
         return replacementCount;
     }
