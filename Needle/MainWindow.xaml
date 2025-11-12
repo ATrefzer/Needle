@@ -11,7 +11,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
         <Style TargetType="ListViewItem">
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+         
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="Focusable" Value="False" />
@@ -203,10 +203,17 @@
             </Border>
             <Border Margin="8" Background="#ffffff" BorderBrush="#d0d0d0" BorderThickness="1" CornerRadius="6"
                     Padding="8">
+
+                <!-- Modern version pixel scrolling AND(!) virtualizing -->
                 <ListView ItemsSource="{Binding Results}" ItemTemplate="{StaticResource SearchResultTemplate}"
                           BorderThickness="0" Background="Transparent"
-                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                          ScrollViewer.CanContentScroll="False"
+                          
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          VirtualizingPanel.ScrollUnit="Pixel"
+                          VirtualizingPanel.CacheLength="2"
+                          VirtualizingPanel.CacheLengthUnit="Page"
+                          ScrollViewer.CanContentScroll="True"
+                          
                           IsTabStop="False" Focusable="False" />
             </Border>
         </DockPanel>
@@ -215,7 +222,7 @@
             <Border Background="#ffffff" Padding="24" CornerRadius="8" Width="420" HorizontalAlignment="Center"
                     VerticalAlignment="Center" BorderBrush="#d0d0d0" BorderThickness="1">
                 <StackPanel>
-                    <TextBlock Text="{x:Static resources:Strings.Label_Busy}" FontSize="16" FontWeight="Bold"
+                    <TextBlock Text="{Binding ProgressMessage}" FontSize="16" FontWeight="Bold"
                                Foreground="#222" />
                     <ProgressBar IsIndeterminate="True" Height="10" Margin="0,20,0,0" />
                     <Button Content="Cancel" Command="{Binding CancelSearchCommand}" HorizontalAlignment="Right"

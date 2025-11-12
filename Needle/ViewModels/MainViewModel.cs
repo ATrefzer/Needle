@@ -1,29 +1,34 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Windows;
 using Needle.Models;
+using Needle.Resources;
 using Needle.Services;
 
 namespace Needle.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged
 {
-    private readonly IReplaceService _replaceService;
-    private readonly ISearchService _searchService;
-    private readonly UserSettings _settings;
-    private CancellationTokenSource? _cts;
+    readonly IReplaceService _replaceService;
+    readonly ISearchService _searchService;
+    readonly UserSettings _settings;
+    CancellationTokenSource? _cts;
 
-    private string _fileMasks;
-    private bool _includeSubdirectories;
-    private bool _isBusy;
-    private bool _isCaseSensitive;
-    private bool _isRegex;
-    private string _pattern;
-    private string _replacementText = string.Empty;
-    private string _startDirectory;
-    private string _statusMessage = "Ready";
+    string _fileMasks;
+    bool _includeSubdirectories;
+    bool _isBusy;
+    bool _isCaseSensitive;
+    bool _isRegex;
+    string _pattern;
+
+    string _progressMessage;
+    string _replacementText = string.Empty;
+    ObservableCollection<SearchResult> _result = [];
+    string _startDirectory;
+    string _statusMessage = "Ready";
 
 
     public MainViewModel() : this(new FileSearchService(), new FileReplaceService())
@@ -49,7 +54,16 @@ public class MainViewModel : INotifyPropertyChanged
         _includeSubdirectories = _settings.IncludeSubdirectories;
     }
 
-    public ObservableCollection<SearchResult> Results { get; } = new();
+
+    public ObservableCollection<SearchResult> Results
+    {
+        get => _result;
+        set
+        {
+            _result = value;
+            OnPropertyChanged();
+        }
+    }
 
     public string StartDirectory
     {
@@ -157,13 +171,34 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ProgressMessage
+    {
+        get => _progressMessage;
+        private set
+        {
+            _progressMessage = value;
+            OnPropertyChanged();
+        }
+    }
+
     public RelayCommand StartSearchCommand { get; }
     public RelayCommand CancelSearchCommand { get; }
     public RelayCommand ReplaceCommand { get; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void SaveSettings()
+    Regex CreateRegex()
+    {
+        var options = RegexOptions.Compiled | RegexOptions.Multiline;
+        if (!IsCaseSensitive)
+        {
+            options |= RegexOptions.IgnoreCase;
+        }
+
+        return new Regex(Pattern, options, TimeSpan.FromSeconds(1));
+    }
+
+    void SaveSettings()
     {
         _settings.StartDirectory = StartDirectory;
         _settings.FileMasks = FileMasks;
@@ -174,11 +209,16 @@ public class MainViewModel : INotifyPropertyChanged
         _settings.Save();
     }
 
-    private async void StartSearch()
+    async void StartSearch()
     {
         IsBusy = true;
+        ProgressMessage = Strings.Label_Busy;
         StatusMessage = "Searching...";
         Results.Clear();
+
+
+        ConcurrentQueue<SearchResult> searchResultsQueue = new();
+
 
         // Give UI thread time to render overlay
         await Task.Delay(1);
@@ -199,9 +239,12 @@ public class MainViewModel : INotifyPropertyChanged
         {
             await _searchService.SearchAsync(parameters, r =>
                 {
-                    Application.Current.Dispatcher.Invoke(() => Results.Add(r));
+                    searchResultsQueue.Enqueue(r);
+
+                    // Marshal UI update to the dispatcher
+                    ProgressMessage = $"Found matches in {searchResultsQueue.Count} files.";
                 }
-                , _cts.Token);
+                , _cts.Token).ConfigureAwait(true);
 
 
             StatusMessage = "Finished";
@@ -216,29 +259,26 @@ public class MainViewModel : INotifyPropertyChanged
             StatusMessage = $"Error: {ex.Message}";
         }
 
-        finally
-        {
-            IsBusy = false;
-        }
+        // Regardless if we canceled or completed, update available results
+
+        ProgressMessage = "Updating Ui";
+
+        // WPF renders within frames around every 16ms!
+        await Task.Delay(60);
+
+        Results = new ObservableCollection<SearchResult>(searchResultsQueue);
+
+        ProgressMessage = "Results loaded";
+        IsBusy = false;
     }
 
-    private Regex CreateRegex()
-    {
-        var options = RegexOptions.Compiled | RegexOptions.Multiline;
-        if (!IsCaseSensitive)
-        {
-            options |= RegexOptions.IgnoreCase;
-        }
 
-        return new Regex(Pattern, options, TimeSpan.FromSeconds(1));
-    }
-
-    private void CancelSearch()
+    void CancelSearch()
     {
         _cts?.Cancel();
     }
 
-    private async void StartReplace()
+    async void StartReplace()
     {
         IsBusy = true;
         StatusMessage = "Replacing...";
@@ -295,7 +335,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? name = null)
+    void OnPropertyChanged([CallerMemberName] string? name = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
