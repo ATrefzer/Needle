@@ -244,11 +244,11 @@ public class MainViewModel : INotifyPropertyChanged
                 ProgressMessage = $"Found  {finalHits + intermediateHits} matches ({searchResultsQueue.Count} files completed)";
             }
         };
-        searchService.MatchFound += (_, _) =>
+        searchService.MatchFound += (_, matchCount) =>
         {
             lock (_obj)
             {
-                intermediateHits++;
+                intermediateHits += matchCount;
                 timer.Start();
             }
         };

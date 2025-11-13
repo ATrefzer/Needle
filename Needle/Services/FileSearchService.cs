@@ -78,6 +78,25 @@ public class FileSearchService : ISearchService
         await producerTask;
     }
 
+    private async Task ProcessSingleFileAsync(string filePath, SearchParameters parameters,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (IsZip(filePath))
+            {
+                await SearchInArchiveAsync(filePath, parameters, cancellationToken);
+                return;
+            }
+
+            await SearchInFileAsync(filePath, parameters, cancellationToken);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // Skip files that can't be accessed
+        }
+    }
+
     private async Task SearchInArchiveAsync(string zipFilePath, SearchParameters parameters,
         CancellationToken cancellationToken)
     {
@@ -128,33 +147,63 @@ public class FileSearchService : ISearchService
         }
         catch (Exception ex)
         {
-            Trace.WriteLine($"An error occurred: {ex.Message}");
+            // Skip files that can't be read
+            Trace.WriteLine(ex.ToString());
+        }
+    }
+
+    private async Task SearchInFileAsync(string filePath, SearchParameters parameters,
+        CancellationToken cancellationToken)
+    {
+        var matches = new List<MatchLine>();
+
+        try
+        {
+            await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                BufferSize,
+                FileOptions.SequentialScan | FileOptions.Asynchronous);
+
+            // Extra step if I want to prevent writing a BOM when the original file did not have one.
+            // Jump back to beginning after detecting encoding is faster than opening the file twice.
+            var encoding = DetectEncoding(stream);
+            stream.Seek(0, SeekOrigin.Begin);
+
+            using var reader = new StreamReader(stream, encoding);
+
+            var lineNumber = 0;
+
+            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+            {
+                lineNumber++;
+                cancellationToken.ThrowIfCancellationRequested();
+                var matchesCount = SearchInLine(line, parameters, lineNumber, matches);
+                if (matchesCount > 0)
+                {
+                    // Intermediate result for large files
+                    MatchFound?.Invoke(this, matchesCount);
+                }
+            }
+
+            if (matches.Count > 0)
+            {
+                var result = new SearchResult(parameters, filePath, matches, encoding);
+                FileCompleted?.Invoke(this, result);
+            }
+        }
+        catch (OperationCanceledException)
+        {
             throw;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Skip files that can't be read
+            Trace.WriteLine(ex.ToString());
         }
     }
 
     private static bool IsZip(string filePath)
     {
         return Path.GetExtension(filePath).Equals(".zip", StringComparison.InvariantCultureIgnoreCase);
-    }
-
-    private async Task ProcessSingleFileAsync(string filePath, SearchParameters parameters,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (IsZip(filePath))
-            {
-                await SearchInArchiveAsync(filePath, parameters, cancellationToken);
-                return;
-            }
-
-            await SearchInFileAsync(filePath, parameters, cancellationToken);
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-        {
-            // Skip files that can't be accessed
-        }
     }
 
 
@@ -237,54 +286,6 @@ public class FileSearchService : ISearchService
         }
     }
 
-
-    private async Task SearchInFileAsync(string filePath, SearchParameters parameters,
-        CancellationToken cancellationToken)
-    {
-        var matches = new List<MatchLine>();
-
-        try
-        {
-            await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
-                BufferSize,
-                FileOptions.SequentialScan | FileOptions.Asynchronous);
-
-            // Extra step if I want to prevent writing a BOM when the original file did not have one.
-            // Jump back to beginning after detecting encoding is faster than opening the file twice.
-            var encoding = DetectEncoding(stream);
-            stream.Seek(0, SeekOrigin.Begin);
-
-            using var reader = new StreamReader(stream, encoding);
-
-            var lineNumber = 0;
-
-            while (await reader.ReadLineAsync(cancellationToken) is { } line)
-            {
-                lineNumber++;
-                cancellationToken.ThrowIfCancellationRequested();
-                var matchesCount = SearchInLine(line, parameters, lineNumber, matches);
-                if (matchesCount > 0)
-                {
-                    // Intermediate result for large files
-                    MatchFound?.Invoke(this, matchesCount);
-                }
-            }
-
-            if (matches.Count > 0)
-            {
-                var result = new SearchResult(parameters, filePath, matches, encoding);
-                FileCompleted?.Invoke(this, result);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Skip files that can't be read
-        }
-    }
 
     private static ulong SearchInLine(string line, SearchParameters parameters, int lineNumber, List<MatchLine> matches)
     {
