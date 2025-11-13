@@ -1,9 +1,9 @@
-using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Threading;
 using Needle.Models;
 using Needle.Resources;
 using Needle.Services;
@@ -12,33 +12,27 @@ namespace Needle.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged
 {
-    readonly IReplaceService _replaceService;
-    readonly ISearchService _searchService;
-    readonly UserSettings _settings;
-    CancellationTokenSource? _cts;
+    private readonly UserSettings _settings;
+    private CancellationTokenSource? _cts;
 
-    string _fileMasks;
-    bool _includeSubdirectories;
-    bool _isBusy;
-    bool _isCaseSensitive;
-    bool _isRegex;
-    string _pattern;
+    private string _fileMasks;
+    private bool _includeSubdirectories;
+    private bool _isBusy;
+    private bool _isCaseSensitive;
+    private bool _isRegex;
 
-    string _progressMessage;
-    string _replacementText = string.Empty;
-    ObservableCollection<SearchResult> _result = [];
-    string _startDirectory;
-    string _statusMessage = "Ready";
+    private object _obj = new();
+    private string _pattern;
+
+    private string _progressMessage = string.Empty;
+    private string _replacementText = string.Empty;
+    private ObservableCollection<SearchResult> _result = [];
+    private string _startDirectory;
+    private string _statusMessage = "Ready";
 
 
-    public MainViewModel() : this(new FileSearchService(), new FileReplaceService())
+    public MainViewModel()
     {
-    }
-
-    public MainViewModel(ISearchService searchService, IReplaceService replaceService)
-    {
-        _searchService = searchService;
-        _replaceService = replaceService;
         _settings = UserSettings.Load();
 
         StartSearchCommand = new RelayCommand(_ => StartSearch(), _ => !IsBusy);
@@ -187,7 +181,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    Regex CreateRegex()
+    private Regex CreateRegex()
     {
         var options = RegexOptions.Compiled | RegexOptions.Multiline;
         if (!IsCaseSensitive)
@@ -198,7 +192,7 @@ public class MainViewModel : INotifyPropertyChanged
         return new Regex(Pattern, options, TimeSpan.FromSeconds(1));
     }
 
-    void SaveSettings()
+    private void SaveSettings()
     {
         _settings.StartDirectory = StartDirectory;
         _settings.FileMasks = FileMasks;
@@ -209,16 +203,55 @@ public class MainViewModel : INotifyPropertyChanged
         _settings.Save();
     }
 
-    async void StartSearch()
+    private async void StartSearch()
     {
         IsBusy = true;
-        ProgressMessage = Strings.Label_Busy;
+        ProgressMessage = "Searching...";
         StatusMessage = "Searching...";
         Results.Clear();
 
+        List<SearchResult> searchResultsQueue = new(1000);
+        var searchService = new FileSearchService();
 
-        ConcurrentQueue<SearchResult> searchResultsQueue = new();
+        var timer = new DispatcherTimer
+        {
+            // If we have some hits but the large file gets not finished, update the progress.
+            Interval = TimeSpan.FromSeconds(2)
+        };
+        timer.Stop();
 
+
+        ulong finalHits = 0;
+        ulong intermediateHits = 0;
+
+        timer.Tick += (_, _) =>
+        {
+            lock (_obj)
+            {
+                timer.Stop();
+                ProgressMessage = $"Found  {finalHits + intermediateHits} matches ({searchResultsQueue.Count} files completed)";
+            }
+        };
+
+        searchService.FileCompleted += (_, result) =>
+        {
+            lock (_obj)
+            {
+                timer.Stop();
+                searchResultsQueue.Add(result);
+                finalHits += result.MatchCount;
+                intermediateHits -= result.MatchCount;
+                ProgressMessage = $"Found  {finalHits + intermediateHits} matches ({searchResultsQueue.Count} files completed)";
+            }
+        };
+        searchService.MatchFound += (_, _) =>
+        {
+            lock (_obj)
+            {
+                intermediateHits++;
+                timer.Start();
+            }
+        };
 
         // Give UI thread time to render overlay
         await Task.Delay(1);
@@ -237,16 +270,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            await _searchService.SearchAsync(parameters, r =>
-                {
-                    searchResultsQueue.Enqueue(r);
-
-                    // Marshal UI update to the dispatcher
-                    ProgressMessage = $"Found matches in {searchResultsQueue.Count} files.";
-                }
-                , _cts.Token).ConfigureAwait(true);
-
-
+            await searchService.SearchAsync(parameters, _cts.Token).ConfigureAwait(true);
             StatusMessage = "Finished";
         }
         catch (OperationCanceledException)
@@ -273,12 +297,12 @@ public class MainViewModel : INotifyPropertyChanged
     }
 
 
-    void CancelSearch()
+    private void CancelSearch()
     {
         _cts?.Cancel();
     }
 
-    async void StartReplace()
+    private async void StartReplace()
     {
         IsBusy = true;
         StatusMessage = "Replacing...";
@@ -288,10 +312,12 @@ public class MainViewModel : INotifyPropertyChanged
 
         _cts = new CancellationTokenSource();
 
+
+        var replaceService = new FileReplaceService();
         try
         {
             // Note: isRegex and isCaseSensitive are now stored in each SearchResult
-            var result = await _replaceService.ReplaceInFilesAsync(
+            var result = await replaceService.ReplaceInFilesAsync(
                 Results, ReplacementText,
                 _cts.Token);
 
@@ -335,7 +361,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    void OnPropertyChanged([CallerMemberName] string? name = null)
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }

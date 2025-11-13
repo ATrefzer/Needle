@@ -13,8 +13,7 @@ public class FileSearchService : ISearchService
     private const int MaxDegreeOfParallelism = 8;
     private const int BufferSize = 81920; // 80 KB buffer for file reading
 
-    public Task SearchAsync(SearchParameters parameters, Action<SearchResult> onResult,
-        CancellationToken cancellationToken)
+    public Task SearchAsync(SearchParameters parameters, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(parameters.StartDirectory) || !Directory.Exists(parameters.StartDirectory))
         {
@@ -26,23 +25,25 @@ public class FileSearchService : ISearchService
             throw new ArgumentException("Search pattern must not be empty.");
         }
 
-        return Task.Run(() => SearchInternalAsync(parameters, onResult, cancellationToken), cancellationToken);
+        return Task.Run(() => SearchInternalAsync(parameters, cancellationToken), cancellationToken);
     }
 
-    private async Task SearchInternalAsync(SearchParameters parameters, Action<SearchResult> onResult,
-        CancellationToken cancellationToken)
+    public event EventHandler<SearchResult>? FileCompleted;
+    public event EventHandler<ulong>? MatchFound;
+
+    private async Task SearchInternalAsync(SearchParameters parameters, CancellationToken cancellationToken)
     {
-        ;
 
         // Create channel for producer-consumer pattern
         var channel = Channel.CreateUnbounded<string>();
+
+        var filePatterns = parameters.CreateFilePatterns();
 
         // Producer: Enumerate files in background
         var producerTask = Task.Run(async () =>
         {
             try
             {
-                var filePatterns = CreateFilePatterns(parameters.FileMasks);
                 foreach (var file in EnumerateFiles(parameters.StartDirectory, filePatterns,
                              parameters.IncludeSubdirectories,
                              cancellationToken))
@@ -71,32 +72,18 @@ public class FileSearchService : ISearchService
                 CancellationToken = cancellationToken
             },
             async (filePath, ct) =>
-                await ProcessSingleFileAsync(filePath, parameters, onResult, ct).ConfigureAwait(false)
+                await ProcessSingleFileAsync(filePath, parameters, ct).ConfigureAwait(false)
         );
 
         await producerTask;
     }
 
-    private static List<Regex> CreateFilePatterns(string masks)
-    {
-        var parsed = ParseFileMasks(masks);
-
-        return parsed.Select(mask =>
-
-            // \* because of the Regex.Escape
-            new Regex(
-                "^" + Regex.Escape(mask).Replace(@"\*", ".*").Replace(@"\?", ".") + "$",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled
-            )).ToList();
-    }
-
-    private static async Task<List<SearchResult>> SearchInArchive(string zipFilePath, SearchParameters parameters,
+    private async Task SearchInArchiveAsync(string zipFilePath, SearchParameters parameters,
         CancellationToken cancellationToken)
     {
         try
         {
-            List<SearchResult> results = [];
-            var filePatterns = CreateFilePatterns(parameters.FileMasks);
+            var filePatterns = parameters.CreateFilePatterns();
 
             await using var archive = await ZipFile.OpenReadAsync(zipFilePath, cancellationToken);
 
@@ -111,26 +98,33 @@ public class FileSearchService : ISearchService
                     continue;
                 }
 
-                var matches = new List<MatchLine>();
+
                 var lineNumber = 0;
 
                 await using var entryStream = await entry.OpenAsync(cancellationToken);
                 using var reader = new StreamReader(entryStream);
-
+                
+                var matches = new List<MatchLine>();
                 while (await reader.ReadLineAsync(cancellationToken) is { } line)
                 {
                     lineNumber++;
                     cancellationToken.ThrowIfCancellationRequested();
-                    SearchInLine(line, parameters, lineNumber, matches);
+                    
+                    var matchesCount = SearchInLine(line, parameters, lineNumber, matches);
+                    if (matchesCount > 0)
+                    {
+                        // Intermediate result for large files
+                        MatchFound?.Invoke(this, matchesCount);
+                    }
                 }
 
                 if (matches.Count > 0)
                 {
-                    results.Add(new SearchResult(parameters, zipFilePath, entry.FullName, matches));
+                    // File is complete
+                    var result = new SearchResult(parameters, zipFilePath, entry.FullName, matches);
+                    FileCompleted?.Invoke(this, result);
                 }
             }
-
-            return results;
         }
         catch (Exception ex)
         {
@@ -138,34 +132,24 @@ public class FileSearchService : ISearchService
             throw;
         }
     }
-    
+
     private static bool IsZip(string filePath)
     {
         return Path.GetExtension(filePath).Equals(".zip", StringComparison.InvariantCultureIgnoreCase);
     }
 
     private async Task ProcessSingleFileAsync(string filePath, SearchParameters parameters,
-        Action<SearchResult> onResult, CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         try
         {
             if (IsZip(filePath))
             {
-                // Zip search
-                var results = await SearchInArchive(filePath, parameters, cancellationToken);
-                foreach (var result in results)
-                {
-                    onResult(result);
-                }
-
+                await SearchInArchiveAsync(filePath, parameters, cancellationToken);
                 return;
             }
 
-            var searchResult = await SearchInFileAsync(filePath, parameters, cancellationToken);
-            if (searchResult != null)
-            {
-                onResult(searchResult);
-            }
+            await SearchInFileAsync(filePath, parameters, cancellationToken);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
@@ -173,19 +157,6 @@ public class FileSearchService : ISearchService
         }
     }
 
-    private static List<string> ParseFileMasks(string fileMasks)
-    {
-        if (string.IsNullOrWhiteSpace(fileMasks))
-        {
-            return ["*.*"];
-        }
-
-        return fileMasks
-            .Split([';', ',', '|'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(m => m.Trim())
-            .Where(m => !string.IsNullOrWhiteSpace(m))
-            .ToList();
-    }
 
     /// <summary>
     ///     If the file has no preamble the preamble bytes in the returned encoding are empty.
@@ -267,7 +238,7 @@ public class FileSearchService : ISearchService
     }
 
 
-    private static async Task<SearchResult?> SearchInFileAsync(string filePath, SearchParameters parameters,
+    private async Task SearchInFileAsync(string filePath, SearchParameters parameters,
         CancellationToken cancellationToken)
     {
         var matches = new List<MatchLine>();
@@ -291,12 +262,18 @@ public class FileSearchService : ISearchService
             {
                 lineNumber++;
                 cancellationToken.ThrowIfCancellationRequested();
-                SearchInLine(line, parameters, lineNumber, matches);
+                var matchesCount = SearchInLine(line, parameters, lineNumber, matches);
+                if (matchesCount > 0)
+                {
+                    // Intermediate result for large files
+                    MatchFound?.Invoke(this, matchesCount);
+                }
             }
 
             if (matches.Count > 0)
             {
-                return new SearchResult(parameters, filePath, matches, encoding);
+                var result = new SearchResult(parameters, filePath, matches, encoding);
+                FileCompleted?.Invoke(this, result);
             }
         }
         catch (OperationCanceledException)
@@ -307,23 +284,21 @@ public class FileSearchService : ISearchService
         {
             // Skip files that can't be read
         }
-
-        return null;
     }
 
-    private static void SearchInLine(string line, SearchParameters parameters, int lineNumber, List<MatchLine> matches)
+    private static ulong SearchInLine(string line, SearchParameters parameters, int lineNumber, List<MatchLine> matches)
     {
         if (parameters.Regex != null)
         {
-            SearchInLineRegex(line, parameters.Regex, lineNumber, matches);
+            return SearchInLineRegex(line, parameters.Regex, lineNumber, matches);
         }
         else
         {
-            SearchInLineText(line, parameters, lineNumber, matches);
+            return SearchInLineText(line, parameters, lineNumber, matches);
         }
     }
 
-    private static void SearchInLineText(string line, SearchParameters parameters, int lineNumber,
+    private static ulong SearchInLineText(string line, SearchParameters parameters, int lineNumber,
         List<MatchLine> matches)
     {
         var pattern = parameters.Pattern;
@@ -333,8 +308,10 @@ public class FileSearchService : ISearchService
             : StringComparison.OrdinalIgnoreCase;
         var index = 0;
 
+        ulong matchesCount = 0;
         while ((index = line.IndexOf(pattern, index, comparison)) != -1)
         {
+            matchesCount++;
             matches.Add(new MatchLine
             {
                 LineNumber = lineNumber,
@@ -345,15 +322,19 @@ public class FileSearchService : ISearchService
             });
             index += pattern.Length; // Move past this match
         }
+
+        return matchesCount;
     }
 
-    private static void SearchInLineRegex(string line, Regex regex, int lineNumber, List<MatchLine> matches)
+    private static ulong SearchInLineRegex(string line, Regex regex, int lineNumber, List<MatchLine> matches)
     {
         // Regex: capture all matches with positions
         var regexMatches = regex.EnumerateMatches(line);
 
+        ulong matchesCount = 0;
         foreach (var match in regexMatches)
         {
+            matchesCount++;
             matches.Add(new MatchLine
             {
                 LineNumber = lineNumber,
@@ -363,5 +344,7 @@ public class FileSearchService : ISearchService
                 IsSelected = true
             });
         }
+
+        return matchesCount;
     }
 }

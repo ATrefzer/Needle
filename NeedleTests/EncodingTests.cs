@@ -5,11 +5,10 @@ using NUnit.Framework;
 
 namespace NeedleTests;
 
-
 [TestFixture]
 public class EncodingTests
 {
-    static List<(string, Encoding, bool)> GetTestData()
+    private static List<(string, Encoding, bool)> GetTestData()
     {
         // Most code pages are no longer supported by default. We have to register them.
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -19,7 +18,7 @@ public class EncodingTests
         [
             // Codepages are not detected. We map it to utf8 when we write the file.
             // File has no preamble and starts with the text.
-            ("file-latin9.txt", Encoding.UTF8,  false),
+            ("file-latin9.txt", Encoding.UTF8, false),
 
             // File has no preamble and starts with the text.
             ("file-utf8-without-bom.txt", Encoding.UTF8, false),
@@ -44,9 +43,12 @@ public class EncodingTests
             IncludeSubdirectories = false
         };
 
-        // Search text
         SearchResult? result = null;
-        await fss.SearchAsync(parameters, r => result = r, CancellationToken.None);
+        fss.FileCompleted += (s, e) => result = e;
+
+        // Search text
+
+        await fss.SearchAsync(parameters, CancellationToken.None);
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.MatchCount, Is.EqualTo(1));
 
@@ -70,5 +72,4 @@ public class EncodingTests
             Assert.That(encoding.GetPreamble().Length, Is.EqualTo(0));
         }
     }
-
 }

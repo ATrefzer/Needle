@@ -40,7 +40,7 @@ public class SearchResult : INotifyPropertyChanged
     /// Matches in zip files cannot be replaced (yet).
     /// </summary>
     public bool IsArchive { get; }
-    public int MatchCount => Matches?.Count ?? 0;
+    public ulong MatchCount => (ulong)Matches.Count;
     public string FileName => IsArchive ? Path.GetFileName(FilePath) + "/" + ArchivePath : Path.GetFileName(FilePath) ;
 
     /// <summary>
