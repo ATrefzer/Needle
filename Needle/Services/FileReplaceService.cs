@@ -51,6 +51,12 @@ public class FileReplaceService : IReplaceService
     private async Task ProcessSingleFileAsync(SearchResult searchResult, string replacementText, ReplaceResult result,
         CancellationToken cancellationToken)
     {
+        if (searchResult.IsArchive)
+        {
+            // Cannot replace in archive
+            return;
+        }
+        
         cancellationToken.ThrowIfCancellationRequested();
 
         // Only process selected matches
