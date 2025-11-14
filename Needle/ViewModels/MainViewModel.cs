@@ -304,6 +304,14 @@ public class MainViewModel : INotifyPropertyChanged
 
     private async void StartReplace()
     {
+
+        var owner = Application.Current.MainWindow;
+        var user = MessageBox.Show(owner!, $"Do you want to replace in {Results.Count} files", "Replace",  MessageBoxButton.YesNo,  MessageBoxImage.Question);
+        if (user == MessageBoxResult.No)
+        {
+            return;
+        }
+        
         IsBusy = true;
         StatusMessage = "Replacing...";
 
