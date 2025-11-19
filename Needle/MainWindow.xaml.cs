@@ -20,7 +20,7 @@ public partial class MainWindow : Window
         DataContext = new MainViewModel();
     }
 
-    private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is Border { DataContext: SearchResult result })
         {
@@ -29,7 +29,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BrowseFolder_Click(object sender, RoutedEventArgs e)
+    void BrowseFolder_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog
         {
@@ -48,20 +48,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenInNotepadPlusPlus_Click(object sender, RoutedEventArgs e)
+    // Line-level context menu (match lines)
+    void OpenInNotepadPlusPlus_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement border } })
-            // Border.DataContext = MatchLine
-            // Border.Tag = SearchResult
-        {
-            if (border is { DataContext: MatchLine matchLine, Tag: SearchResult searchResult })
+        if (sender is MenuItem
             {
-                OpenFileInNotepadPlusPlus(searchResult.FilePath, matchLine.LineNumber);
-            }
+                Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: MatchLine match } }
+            })
+        {
+            OpenFileInNotepadPlusPlus(match.FilePath, match.LineNumber);
         }
     }
 
-    private void OpenFileInNotepadPlusPlus(string filePath, int lineNumber)
+    void OpenFileInNotepadPlusPlus(string filePath, int lineNumber)
     {
         try
         {
@@ -72,7 +71,6 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Notepad++ command line syntax: notepad++.exe -n<lineNumber> "filepath"
             var startInfo = new ProcessStartInfo
             {
                 FileName = "C:\\Program Files\\Notepad++\\notepad++.exe",
@@ -94,7 +92,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenFileInExplorer(string filePath)
+    void OpenFileInExplorer(string filePath)
     {
         try
         {
@@ -115,18 +113,17 @@ public partial class MainWindow : Window
         }
     }
 
-    private void FindInExplorer_Click(object sender, RoutedEventArgs e)
+    // Header-level context menu (file-level) handler
+    void FindSearchResultInExplorer_Click(object sender, RoutedEventArgs e)
     {
-        // Border.DataContext = MatchLine
-        // Border.Tag = SearchResult
-        if (sender is not MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement border } })
+        if (sender is not MenuItem
+            {
+                Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: SearchResult searchResult } }
+            })
         {
             return;
         }
 
-        if (border is { DataContext: MatchLine matchLine, Tag: SearchResult searchResult })
-        {
-            OpenFileInExplorer(searchResult.FilePath);
-        }
+        OpenFileInExplorer(searchResult.FilePath);
     }
 }

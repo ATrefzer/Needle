@@ -129,7 +129,7 @@ public class FileSearchService : ISearchService
                     lineNumber++;
                     cancellationToken.ThrowIfCancellationRequested();
                     
-                    var matchesCount = SearchInLine(line, parameters, lineNumber, matches);
+                    var matchesCount = SearchInLine(zipFilePath, line, parameters, lineNumber, matches);
                     if (matchesCount > 0)
                     {
                         // Intermediate result for large files
@@ -176,7 +176,7 @@ public class FileSearchService : ISearchService
             {
                 lineNumber++;
                 cancellationToken.ThrowIfCancellationRequested();
-                var matchesCount = SearchInLine(line, parameters, lineNumber, matches);
+                var matchesCount = SearchInLine(filePath, line, parameters, lineNumber, matches);
                 if (matchesCount > 0)
                 {
                     // Intermediate result for large files
@@ -287,19 +287,20 @@ public class FileSearchService : ISearchService
     }
 
 
-    private static ulong SearchInLine(string line, SearchParameters parameters, int lineNumber, List<MatchLine> matches)
+    private static ulong SearchInLine(string filePath, string line, SearchParameters parameters, int lineNumber,
+        List<MatchLine> matches)
     {
         if (parameters.Regex != null)
         {
-            return SearchInLineRegex(line, parameters.Regex, lineNumber, matches);
+            return SearchInLineRegex(filePath, line, parameters.Regex, lineNumber, matches);
         }
         else
         {
-            return SearchInLineText(line, parameters, lineNumber, matches);
+            return SearchInLineText(filePath, line, parameters, lineNumber, matches);
         }
     }
 
-    private static ulong SearchInLineText(string line, SearchParameters parameters, int lineNumber,
+    private static ulong SearchInLineText(string filePath, string line, SearchParameters parameters, int lineNumber,
         List<MatchLine> matches)
     {
         var pattern = parameters.Pattern;
@@ -315,6 +316,7 @@ public class FileSearchService : ISearchService
             matchesCount++;
             matches.Add(new MatchLine
             {
+                FilePath = filePath,
                 LineNumber = lineNumber,
                 Text = line,
                 StartIndex = index,
@@ -327,7 +329,8 @@ public class FileSearchService : ISearchService
         return matchesCount;
     }
 
-    private static ulong SearchInLineRegex(string line, Regex regex, int lineNumber, List<MatchLine> matches)
+    private static ulong SearchInLineRegex(string filePath, string line, Regex regex, int lineNumber,
+        List<MatchLine> matches)
     {
         // Regex: capture all matches with positions
         var regexMatches = regex.EnumerateMatches(line);
@@ -338,6 +341,7 @@ public class FileSearchService : ISearchService
             matchesCount++;
             matches.Add(new MatchLine
             {
+                FilePath = filePath,
                 LineNumber = lineNumber,
                 Text = line,
                 StartIndex = match.Index,
