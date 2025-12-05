@@ -37,7 +37,7 @@ jobs:
         run: dotnet test --no-build --configuration Release --verbosity normal
   
       - name: Publish
-        run: dotnet publish .\Needle\Needle.csproj -c Release -r win-x64 -o publish --self-contained false -p:PublishSingleFile=true -p:SatelliteResourceLanguages=en -p:Version=$env:BUILD_VERSION -p:FileVersion=$env:BUILD_VERSION -p:AssemblyVersion=$env:BUILD_VERSION -p:PackageVersion=$env:BUILD_VERSION
+        run: dotnet publish .\Needle\Needle.csproj -p:PublishProfile=Properties\PublishProfiles\FolderProfile.pubxml -p:SatelliteResourceLanguages=en -p:Version=$env:BUILD_VERSION -p:FileVersion=$env:BUILD_VERSION -p:AssemblyVersion=$env:BUILD_VERSION -p:PackageVersion=$env:BUILD_VERSION
         
       - name: Zip Release
         run: Compress-Archive -Path publish/* -DestinationPath latest-release.zip
