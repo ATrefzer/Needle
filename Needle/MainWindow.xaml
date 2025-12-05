@@ -143,8 +143,10 @@
                                 VerticalAlignment="Center" Click="BrowseFolder_Click" ToolTip="Select folder" />
                         <TextBlock Grid.Column="3" Text="{x:Static resources:Strings.Label_Filemask}" Foreground="#444"
                                    VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold" />
-                        <TextBox Grid.Column="4" Height="26" Padding="6,2" VerticalAlignment="Center"
-                                 Text="{Binding FileMasks, UpdateSourceTrigger=PropertyChanged}" />
+                        <ComboBox Grid.Column="4" Height="26" Padding="6,2" VerticalAlignment="Center"
+                                  IsEditable="True"
+                                  Text="{Binding FileMasks, UpdateSourceTrigger=PropertyChanged}"
+                                  ItemsSource="{Binding FileMasksHistory}" />
                     </Grid>
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>

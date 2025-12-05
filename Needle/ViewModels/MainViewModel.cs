@@ -46,6 +46,9 @@ public class MainViewModel : INotifyPropertyChanged
         _isRegex = _settings.IsRegex;
         _isCaseSensitive = _settings.IsCaseSensitive;
         _includeSubdirectories = _settings.IncludeSubdirectories;
+        
+        // Load file masks history
+        FileMasksHistory = new ObservableCollection<string>(_settings.FileMasksHistory);
     }
 
 
@@ -58,6 +61,8 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
+    
+    public ObservableCollection<string> FileMasksHistory { get; }
 
     public string StartDirectory
     {
@@ -200,11 +205,40 @@ public class MainViewModel : INotifyPropertyChanged
         _settings.IsRegex = IsRegex;
         _settings.IsCaseSensitive = IsCaseSensitive;
         _settings.IncludeSubdirectories = IncludeSubdirectories;
+        _settings.FileMasksHistory = FileMasksHistory.ToList();
         _settings.Save();
+    }
+    
+    private void AddFileMaskToHistory(string fileMask)
+    {
+        if (string.IsNullOrWhiteSpace(fileMask))
+        {
+            return;
+        }
+        
+        // Remove if already exists to move it to the top
+        if (FileMasksHistory.Contains(fileMask))
+        {
+            FileMasksHistory.Remove(fileMask);
+        }
+        
+        // Add to the beginning
+        FileMasksHistory.Insert(0, fileMask);
+        
+        // Keep only last 10 items
+        while (FileMasksHistory.Count > 10)
+        {
+            FileMasksHistory.RemoveAt(FileMasksHistory.Count - 1);
+        }
+        
+        SaveSettings();
     }
 
     private async void StartSearch()
     {
+        // Add current file mask to history before starting search
+        AddFileMaskToHistory(FileMasks);
+        
         IsBusy = true;
         ProgressMessage = "Searching...";
         StatusMessage = "Searching...";
