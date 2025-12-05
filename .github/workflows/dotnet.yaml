@@ -40,7 +40,7 @@ jobs:
         run: dotnet publish .\Needle\Needle.csproj -p:PublishProfile=Properties\PublishProfiles\FolderProfile.pubxml -p:SatelliteResourceLanguages=en -p:Version=$env:BUILD_VERSION -p:FileVersion=$env:BUILD_VERSION -p:AssemblyVersion=$env:BUILD_VERSION -p:PackageVersion=$env:BUILD_VERSION
         
       - name: Zip Release
-        run: Compress-Archive -Path publish/* -DestinationPath latest-release.zip
+        run: Compress-Archive -Path bin/publish/* -DestinationPath latest-release.zip
 
       # Delete existing "latest"-Release & Tag
       - name: Delete existing "latest" release if present
