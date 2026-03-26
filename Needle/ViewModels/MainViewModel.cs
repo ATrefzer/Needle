@@ -224,13 +224,17 @@ public class MainViewModel : INotifyPropertyChanged
         
         // Add to the beginning
         FileMasksHistory.Insert(0, fileMask);
-        
+
         // Keep only last 10 items
         while (FileMasksHistory.Count > 10)
         {
             FileMasksHistory.RemoveAt(FileMasksHistory.Count - 1);
         }
-        
+
+        // Restore FileMasks because modifying the ObservableCollection
+        // causes the editable ComboBox to reset its Text binding.
+        FileMasks = fileMask;
+
         SaveSettings();
     }
 
