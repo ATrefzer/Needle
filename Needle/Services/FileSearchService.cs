@@ -33,7 +33,6 @@ public class FileSearchService : ISearchService
 
     private async Task SearchInternalAsync(SearchParameters parameters, CancellationToken cancellationToken)
     {
-
         // Create channel for producer-consumer pattern
         var channel = Channel.CreateUnbounded<string>();
 
@@ -122,13 +121,13 @@ public class FileSearchService : ISearchService
 
                 await using var entryStream = await entry.OpenAsync(cancellationToken);
                 using var reader = new StreamReader(entryStream);
-                
+
                 var matches = new List<MatchLine>();
                 while (await reader.ReadLineAsync(cancellationToken) is { } line)
                 {
                     lineNumber++;
                     cancellationToken.ThrowIfCancellationRequested();
-                    
+
                     var matchesCount = SearchInLine(zipFilePath, line, parameters, lineNumber, matches);
                     if (matchesCount > 0)
                     {
@@ -263,18 +262,9 @@ public class FileSearchService : ISearchService
         bool includeSubdirectories,
         CancellationToken cancellationToken)
     {
-        var enumerationOptions = new EnumerationOptions
-        {
-            IgnoreInaccessible = true,
-            RecurseSubdirectories = includeSubdirectories,
-            ReturnSpecialDirectories = false,
-            AttributesToSkip = FileAttributes.System
-        };
-
-
         cancellationToken.ThrowIfCancellationRequested();
 
-        var files = Directory.EnumerateFiles(directory, "*", enumerationOptions);
+        var files = SafeEnumerateFiles(directory, includeSubdirectories);
 
         foreach (var file in files)
         {
@@ -286,6 +276,54 @@ public class FileSearchService : ISearchService
         }
     }
 
+    /// <summary>
+    ///     Enumerates files recursively while tolerating inaccessible subdirectories,
+    ///     instead of letting one bad folder abort the entire scan.
+    /// </summary>
+    private static IEnumerable<string> SafeEnumerateFiles(string path, bool includeSubdirectories)
+    {
+        var result = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(path);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+
+            string[] subDirs;
+            string[] files;
+
+            try
+            {
+                files = Directory.GetFiles(current);
+                subDirs = Directory.GetDirectories(current);
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            result.AddRange(files);
+
+            if (includeSubdirectories)
+            {
+                foreach (var dir in subDirs)
+                {
+                    var folderName = Path.GetFileName(dir);
+                    if (!folderName.StartsWith("."))
+                    {
+                        pending.Push(dir);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
 
     private static ulong SearchInLine(string filePath, string line, SearchParameters parameters, int lineNumber,
         List<MatchLine> matches)
@@ -294,10 +332,8 @@ public class FileSearchService : ISearchService
         {
             return SearchInLineRegex(filePath, line, parameters.Regex, lineNumber, matches);
         }
-        else
-        {
-            return SearchInLineText(filePath, line, parameters, lineNumber, matches);
-        }
+
+        return SearchInLineText(filePath, line, parameters, lineNumber, matches);
     }
 
     private static ulong SearchInLineText(string filePath, string line, SearchParameters parameters, int lineNumber,
