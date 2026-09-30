@@ -96,6 +96,51 @@ namespace Needle.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Search in:.
+        /// </summary>
+        public static string Label_SearchIn {
+            get {
+                return ResourceManager.GetString("Label_SearchIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to File content.
+        /// </summary>
+        public static string SearchScope_Content {
+            get {
+                return ResourceManager.GetString("SearchScope_Content", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to File name.
+        /// </summary>
+        public static string SearchScope_FileName {
+            get {
+                return ResourceManager.GetString("SearchScope_FileName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to File content and name.
+        /// </summary>
+        public static string SearchScope_Both {
+            get {
+                return ResourceManager.GetString("SearchScope_Both", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Name.
+        /// </summary>
+        public static string Label_FileNameMatch {
+            get {
+                return ResourceManager.GetString("Label_FileNameMatch", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Regex.
         /// </summary>
         public static string Label_Regex {

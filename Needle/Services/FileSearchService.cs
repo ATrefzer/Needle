@@ -88,7 +88,18 @@ public class FileSearchService : ISearchService
                 return;
             }
 
-            await SearchInFileAsync(filePath, parameters, cancellationToken);
+            var matches = SearchInFileName(filePath, Path.GetFileName(filePath), parameters);
+
+            if (parameters.SearchInContent)
+            {
+                await SearchInFileAsync(filePath, parameters, matches, cancellationToken);
+            }
+            else if (matches.Count > 0)
+            {
+                // Content is not touched, so the encoding does not matter.
+                var result = new SearchResult(parameters, filePath, matches, new UTF8Encoding(false));
+                FileCompleted?.Invoke(this, result);
+            }
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
@@ -117,22 +128,26 @@ public class FileSearchService : ISearchService
                 }
 
 
-                var lineNumber = 0;
+                var matches = SearchInFileName(zipFilePath, Path.GetFileName(entry.FullName), parameters);
 
-                await using var entryStream = await entry.OpenAsync(cancellationToken);
-                using var reader = new StreamReader(entryStream);
-
-                var matches = new List<MatchLine>();
-                while (await reader.ReadLineAsync(cancellationToken) is { } line)
+                if (parameters.SearchInContent)
                 {
-                    lineNumber++;
-                    cancellationToken.ThrowIfCancellationRequested();
+                    var lineNumber = 0;
 
-                    var matchesCount = SearchInLine(zipFilePath, line, parameters, lineNumber, matches);
-                    if (matchesCount > 0)
+                    await using var entryStream = await entry.OpenAsync(cancellationToken);
+                    using var reader = new StreamReader(entryStream);
+
+                    while (await reader.ReadLineAsync(cancellationToken) is { } line)
                     {
-                        // Intermediate result for large files
-                        MatchFound?.Invoke(this, matchesCount);
+                        lineNumber++;
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        var matchesCount = SearchInLine(zipFilePath, line, parameters, lineNumber, matches);
+                        if (matchesCount > 0)
+                        {
+                            // Intermediate result for large files
+                            MatchFound?.Invoke(this, matchesCount);
+                        }
                     }
                 }
 
@@ -151,11 +166,36 @@ public class FileSearchService : ISearchService
         }
     }
 
-    private async Task SearchInFileAsync(string filePath, SearchParameters parameters,
-        CancellationToken cancellationToken)
+    /// <summary>
+    ///     Returns the matches in the file name (empty if file names are not searched).
+    ///     The returned list is used to collect further content matches.
+    /// </summary>
+    private List<MatchLine> SearchInFileName(string filePath, string fileName, SearchParameters parameters)
     {
         var matches = new List<MatchLine>();
+        if (!parameters.SearchInFileName)
+        {
+            return matches;
+        }
 
+        var matchesCount = SearchInLine(filePath, fileName, parameters, 0, matches);
+        foreach (var match in matches)
+        {
+            match.IsFileName = true;
+        }
+
+        if (matchesCount > 0)
+        {
+            MatchFound?.Invoke(this, matchesCount);
+        }
+
+        return matches;
+    }
+
+    /// <param name="matches">Already found matches (i.e. in the file name). Content matches are appended.</param>
+    private async Task SearchInFileAsync(string filePath, SearchParameters parameters, List<MatchLine> matches,
+        CancellationToken cancellationToken)
+    {
         try
         {
             await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,

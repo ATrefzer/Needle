@@ -20,6 +20,7 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _isBusy;
     private bool _isCaseSensitive;
     private bool _isRegex;
+    private SearchScope _searchScope;
 
     private object _obj = new();
     private string _pattern;
@@ -46,7 +47,8 @@ public class MainViewModel : INotifyPropertyChanged
         _isRegex = _settings.IsRegex;
         _isCaseSensitive = _settings.IsCaseSensitive;
         _includeSubdirectories = _settings.IncludeSubdirectories;
-        
+        _searchScope = Enum.IsDefined(_settings.SearchScope) ? _settings.SearchScope : SearchScope.Content;
+
         // Load file masks history
         FileMasksHistory = new ObservableCollection<string>(_settings.FileMasksHistory);
     }
@@ -130,6 +132,24 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public IReadOnlyList<KeyValuePair<SearchScope, string>> SearchScopes { get; } =
+    [
+        new(SearchScope.Content, Strings.SearchScope_Content),
+        new(SearchScope.FileName, Strings.SearchScope_FileName),
+        new(SearchScope.Both, Strings.SearchScope_Both)
+    ];
+
+    public SearchScope SearchScope
+    {
+        get => _searchScope;
+        set
+        {
+            _searchScope = value;
+            OnPropertyChanged();
+            SaveSettings();
+        }
+    }
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -205,6 +225,7 @@ public class MainViewModel : INotifyPropertyChanged
         _settings.IsRegex = IsRegex;
         _settings.IsCaseSensitive = IsCaseSensitive;
         _settings.IncludeSubdirectories = IncludeSubdirectories;
+        _settings.SearchScope = SearchScope;
         _settings.FileMasksHistory = FileMasksHistory.ToList();
         _settings.Save();
     }
@@ -298,6 +319,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         var parameters = new SearchParameters
         {
+            Scope = SearchScope,
             StartDirectory = StartDirectory,
             FileMasks = FileMasks,
             Pattern = Pattern,
@@ -344,7 +366,11 @@ public class MainViewModel : INotifyPropertyChanged
     {
 
         var owner = Application.Current.MainWindow;
-        var user = MessageBox.Show(owner!, $"Do you want to replace in {Results.Count} files", "Replace",  MessageBoxButton.YesNo,  MessageBoxImage.Question);
+        var renameCount = Results.Count(r => !r.IsArchive && r.Matches.Any(m => m.IsFileName && m.IsSelected));
+        var question = renameCount > 0
+            ? $"Do you want to replace in {Results.Count} files?\n{renameCount} of them will be renamed."
+            : $"Do you want to replace in {Results.Count} files";
+        var user = MessageBox.Show(owner!, question, "Replace",  MessageBoxButton.YesNo,  MessageBoxImage.Question);
         if (user == MessageBoxResult.No)
         {
             return;

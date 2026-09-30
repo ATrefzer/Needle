@@ -100,9 +100,20 @@
                                                  />
                                         </ContextMenu>
                                     </DockPanel.ContextMenu>
-                                    <Border Background="#e5e5e5" Padding="4" CornerRadius="3" DockPanel.Dock="Left"
+                                    <Border Padding="4" CornerRadius="3" DockPanel.Dock="Left"
                                             Margin="0,0,8,0" MinWidth="60">
-                                        <TextBlock Text="{Binding LineNumber}" Foreground="#333" FontFamily="Consolas"
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#e5e5e5" />
+                                                <Style.Triggers>
+                                                    <!-- Match in file name instead of file content -->
+                                                    <DataTrigger Binding="{Binding IsFileName}" Value="True">
+                                                        <Setter Property="Background" Value="#cce4f7" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding LineLabel}" Foreground="#333" FontFamily="Consolas"
                                                    TextAlignment="Right" />
                                     </Border>
                                     <TextBlock Text="{Binding SafeText}" Foreground="#222" TextWrapping="Wrap"
@@ -173,6 +184,11 @@
                     </Grid>
                     <Grid Margin="0,0,0,8" HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <TextBlock Text="{x:Static resources:Strings.Label_SearchIn}" Foreground="#444"
+                                       VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding SearchScopes}" DisplayMemberPath="Value"
+                                      SelectedValuePath="Key" SelectedValue="{Binding SearchScope}"
+                                      Height="26" MinWidth="160" Margin="0,0,16,0" VerticalAlignment="Center" />
                             <CheckBox Content="{x:Static resources:Strings.Label_Regex}" IsChecked="{Binding IsRegex}"
                                       Margin="0,0,16,0" VerticalAlignment="Center"
                                       ToolTip="{x:Static resources:Strings.Tooltip_Regex}" />

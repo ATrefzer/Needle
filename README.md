@@ -15,6 +15,12 @@ You can search within ZIP files by including `*.zip` in your file pattern list. 
 
 **Note:** Nested archives are currently ignored.
 
+## Searching in File Names
+
+The *Search in* option selects where the pattern is searched: the file content, the file name, or both. A match in a file name is listed as the first row of the file's matches, marked with a blue **Name** badge instead of a line number.
+
+When replacing, the content is modified first and the file is renamed afterwards. Regex capture groups (`$1`) work for file names as well. A rename is skipped with an error if the new name is invalid or a file with that name already exists. Only file names are renamed, not directories. Files inside ZIP archives are never renamed.
+
 ## Text Replacement Behavior
 
 ### Encoding

@@ -11,8 +11,19 @@ public interface ISearchService
     event EventHandler<ulong> MatchFound;
 }
 
+[Flags]
+public enum SearchScope
+{
+    Content = 1,
+    FileName = 2,
+    Both = Content | FileName
+}
+
 public partial class SearchParameters
 {
+    public SearchScope Scope { get; init; } = SearchScope.Content;
+    public bool SearchInContent => Scope.HasFlag(SearchScope.Content);
+    public bool SearchInFileName => Scope.HasFlag(SearchScope.FileName);
     public string StartDirectory { get; init; } = string.Empty;
     public string FileMasks { get; init; } = string.Empty; // Semicolon separated
     public string Pattern { get; init; } = string.Empty;

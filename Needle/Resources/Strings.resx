@@ -141,4 +141,19 @@ Please install Notepad++ or add it to your PATH environment variable.</value>
     <data name="Menu_OpenInExplorer" xml:space="preserve">
         <value>Find in Explorer</value>
     </data>
+    <data name="Label_SearchIn" xml:space="preserve">
+        <value>Search in:</value>
+    </data>
+    <data name="SearchScope_Content" xml:space="preserve">
+        <value>File content</value>
+    </data>
+    <data name="SearchScope_FileName" xml:space="preserve">
+        <value>File name</value>
+    </data>
+    <data name="SearchScope_Both" xml:space="preserve">
+        <value>File content and name</value>
+    </data>
+    <data name="Label_FileNameMatch" xml:space="preserve">
+        <value>Name</value>
+    </data>
 </root>

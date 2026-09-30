@@ -66,13 +66,28 @@ public class FileReplaceService : IReplaceService
             return;
         }
 
+        var contentMatches = selectedMatches.Where(m => !m.IsFileName).ToList();
+        var fileNameMatches = selectedMatches.Where(m => m.IsFileName).ToList();
+
         try
         {
-            var replacementCount = await ReplaceInFileAsync(
-                searchResult,
-                selectedMatches,
-                replacementText,
-                cancellationToken);
+            var replacementCount = 0;
+
+            // Content first because the rename invalidates the file path.
+            if (contentMatches.Count > 0)
+            {
+                replacementCount += await ReplaceInFileAsync(
+                    searchResult,
+                    contentMatches,
+                    replacementText,
+                    cancellationToken);
+            }
+
+            if (fileNameMatches.Count > 0)
+            {
+                RenameFile(searchResult, fileNameMatches, replacementText);
+                replacementCount += fileNameMatches.Count;
+            }
 
             if (replacementCount > 0)
             {
@@ -84,6 +99,38 @@ public class FileReplaceService : IReplaceService
         {
             result.Errors.Add($"{searchResult.FilePath}: {ex.Message}");
         }
+    }
+
+    private static void RenameFile(SearchResult searchResult, List<MatchLine> fileNameMatches, string replacementText)
+    {
+        var filePath = searchResult.FilePath;
+        var oldName = Path.GetFileName(filePath);
+        var sortedMatches = fileNameMatches.OrderBy(m => m.StartIndex).ToList();
+
+        var regex = searchResult.Parameters.Regex;
+        var newName = regex != null
+            ? ReplaceMultipleRegexInLine(oldName, sortedMatches, regex, replacementText)
+            : ReplaceMultipleInLine(oldName, sortedMatches, replacementText);
+
+        if (newName == oldName)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newName) || newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new InvalidOperationException($"Invalid new file name '{newName}'");
+        }
+
+        var newPath = Path.Combine(Path.GetDirectoryName(filePath)!, newName);
+
+        // Allow case-only renames, but never overwrite another file.
+        if (!string.Equals(newPath, filePath, StringComparison.OrdinalIgnoreCase) && File.Exists(newPath))
+        {
+            throw new InvalidOperationException($"Cannot rename to '{newName}', the file already exists");
+        }
+
+        File.Move(filePath, newPath, false);
     }
 
     private static async Task<int> ReplaceInFileAsync(
