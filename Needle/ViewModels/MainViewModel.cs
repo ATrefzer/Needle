@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Threading;
@@ -21,6 +22,7 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _isCaseSensitive;
     private bool _isRegex;
     private SearchScope _searchScope;
+    private int _encodingWithoutBomCodePage;
 
     private object _obj = new();
     private string _pattern;
@@ -48,6 +50,11 @@ public class MainViewModel : INotifyPropertyChanged
         _isCaseSensitive = _settings.IsCaseSensitive;
         _includeSubdirectories = _settings.IncludeSubdirectories;
         _searchScope = Enum.IsDefined(_settings.SearchScope) ? _settings.SearchScope : SearchScope.Content;
+
+        // The ANSI code page may differ if the settings were written on another system.
+        _encodingWithoutBomCodePage = EncodingsWithoutBom.Any(e => e.Key == _settings.EncodingWithoutBomCodePage)
+            ? _settings.EncodingWithoutBomCodePage
+            : Encoding.UTF8.CodePage;
 
         // Load file masks history
         FileMasksHistory = new ObservableCollection<string>(_settings.FileMasksHistory);
@@ -150,6 +157,23 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public IReadOnlyList<KeyValuePair<int, string>> EncodingsWithoutBom { get; } =
+    [
+        new(Encoding.UTF8.CodePage, "UTF-8"),
+        new(FileSearchService.AnsiEncoding.CodePage, $"ANSI ({FileSearchService.AnsiEncoding.WebName})")
+    ];
+
+    public int EncodingWithoutBomCodePage
+    {
+        get => _encodingWithoutBomCodePage;
+        set
+        {
+            _encodingWithoutBomCodePage = value;
+            OnPropertyChanged();
+            SaveSettings();
+        }
+    }
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -226,6 +250,7 @@ public class MainViewModel : INotifyPropertyChanged
         _settings.IsCaseSensitive = IsCaseSensitive;
         _settings.IncludeSubdirectories = IncludeSubdirectories;
         _settings.SearchScope = SearchScope;
+        _settings.EncodingWithoutBomCodePage = EncodingWithoutBomCodePage;
         _settings.FileMasksHistory = FileMasksHistory.ToList();
         _settings.Save();
     }
@@ -317,25 +342,33 @@ public class MainViewModel : INotifyPropertyChanged
 
         _cts = new CancellationTokenSource();
 
-        var parameters = new SearchParameters
-        {
-            Scope = SearchScope,
-            StartDirectory = StartDirectory,
-            FileMasks = FileMasks,
-            Pattern = Pattern,
-            Regex = IsRegex ? CreateRegex() : null,
-            IsCaseSensitive = IsCaseSensitive,
-            IncludeSubdirectories = IncludeSubdirectories
-        };
-
         try
         {
+            // Inside the try block: An invalid regex throws, and this is an async void method.
+            var parameters = new SearchParameters
+            {
+                Scope = SearchScope,
+                StartDirectory = StartDirectory,
+                FileMasks = FileMasks,
+                Pattern = Pattern,
+                Regex = IsRegex ? CreateRegex() : null,
+                IsCaseSensitive = IsCaseSensitive,
+                IncludeSubdirectories = IncludeSubdirectories,
+                EncodingWithoutBom = EncodingWithoutBomCodePage == Encoding.UTF8.CodePage
+                    ? new UTF8Encoding(false)
+                    : FileSearchService.AnsiEncoding
+            };
+
             await searchService.SearchAsync(parameters, _cts.Token).ConfigureAwait(true);
             StatusMessage = "Finished";
         }
         catch (OperationCanceledException)
         {
             StatusMessage = "Canceled";
+        }
+        catch (RegexParseException ex)
+        {
+            StatusMessage = $"Invalid regex: {ex.Message}";
         }
 
         catch (Exception ex)

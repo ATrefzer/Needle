@@ -132,6 +132,24 @@ namespace Needle.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Encoding:.
+        /// </summary>
+        public static string Label_Encoding {
+            get {
+                return ResourceManager.GetString("Label_Encoding", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Encoding for files without byte order mark (BOM)....
+        /// </summary>
+        public static string Tooltip_Encoding {
+            get {
+                return ResourceManager.GetString("Tooltip_Encoding", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Name.
         /// </summary>
         public static string Label_FileNameMatch {

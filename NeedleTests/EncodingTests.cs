@@ -1,75 +1,77 @@
-﻿using System.Text;
-using Needle.Models;
+using System.Text;
 using Needle.Services;
 using NUnit.Framework;
 
 namespace NeedleTests;
 
 [TestFixture]
-public class EncodingTests
+public class EncodingTests : TempDirectoryTestBase
 {
-    private static List<(string, Encoding, bool)> GetTestData()
+    private static List<(string, Encoding?, Encoding)> GetTestData()
     {
-        // Most code pages are no longer supported by default. We have to register them.
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        //var latin9 = Encoding.GetEncoding("ISO-8859-15");
-
         return
         [
-            // Codepages are not detected. We map it to utf8 when we write the file.
-            // File has no preamble and starts with the text.
-            ("file-latin9.txt", Encoding.UTF8, false),
+            // No BOM and not valid UTF-8, so the ANSI code page must be selected (see EncodingWithoutBomTests).
+            ("file-latin9.txt", null, FileSearchService.AnsiEncoding),
 
-            // File has no preamble and starts with the text.
-            ("file-utf8-without-bom.txt", Encoding.UTF8, false),
+            ("file-utf8-without-bom.txt", null, new UTF8Encoding(false)),
 
-            ("file-utf8-with-bom.txt", Encoding.UTF8, true),
-            ("file-utf16-with-bom.txt", Encoding.Unicode, true)
+            // The selected encoding does not matter for files with BOM.
+            ("file-utf8-with-bom.txt", new UTF8Encoding(true), FileSearchService.AnsiEncoding),
+            ("file-utf16-with-bom.txt", Encoding.Unicode, FileSearchService.AnsiEncoding)
         ];
     }
 
     [TestCaseSource(nameof(GetTestData))]
-    public async Task Encodings_are_preserved((string file, Encoding encoding, bool shouldHavePreamble) testData)
+    public async Task Encodings_are_preserved(
+        (string file, Encoding? bomEncoding, Encoding encodingWithoutBom) testData)
     {
-        var startDirectory = Path.Combine(AppContext.BaseDirectory, "Files");
-        var filePath = Path.Combine(startDirectory, testData.file);
+        // Work on a copy, so the test files stay unchanged.
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Files", testData.file), PathOf(testData.file));
 
-        var fss = new FileSearchService();
-        var parameters = new SearchParameters
+        var results = await SearchAsync("byte", encodingWithoutBom: testData.encodingWithoutBom);
+        Assert.That(results.Single().MatchCount, Is.EqualTo(1));
+
+        var replaced = await ReplaceAsync(results, "foo");
+        Assert.That(replaced.TotalReplacements, Is.EqualTo(1), string.Join("\n", replaced.Errors));
+
+        // Assert the BOM is preserved after replace
+        var encoding = FileSearchService.DetectBomEncoding(PathOf(testData.file));
+        if (testData.bomEncoding == null)
         {
-            StartDirectory = startDirectory,
-            FileMasks = testData.file,
-            Pattern = "byte",
-            IncludeSubdirectories = false
-        };
-
-        SearchResult? result = null;
-        fss.FileCompleted += (s, e) => result = e;
-
-        // Search text
-
-        await fss.SearchAsync(parameters, CancellationToken.None);
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.MatchCount, Is.EqualTo(1));
-
-        // Replace text
-        var frs = new FileReplaceService();
-        var replaced = await frs.ReplaceInFilesAsync([result], "foo", CancellationToken.None);
-        Assert.That(replaced.TotalReplacements, Is.EqualTo(1));
-
-
-        // Assert encoding is preserved after replace
-        var encoding = FileSearchService.DetectEncoding(filePath);
-        Assert.That(encoding.EncodingName, Is.EqualTo(testData.encoding.EncodingName));
-        Assert.That(encoding.CodePage, Is.EqualTo(testData.encoding.CodePage));
-
-        if (testData.shouldHavePreamble)
-        {
-            Assert.That(encoding.GetPreamble(), Is.EquivalentTo(testData.encoding.GetPreamble()));
+            Assert.That(encoding, Is.Null);
         }
         else
         {
-            Assert.That(encoding.GetPreamble().Length, Is.EqualTo(0));
+            Assert.That(encoding, Is.Not.Null);
+            Assert.That(encoding!.CodePage, Is.EqualTo(testData.bomEncoding.CodePage));
+            Assert.That(encoding.GetPreamble(), Is.EqualTo(testData.bomEncoding.GetPreamble()));
         }
+    }
+
+    private static IEnumerable<Encoding> BomEncodings()
+    {
+        yield return new UTF8Encoding(true);
+        yield return Encoding.Unicode; // UTF-16 LE
+        yield return Encoding.BigEndianUnicode; // UTF-16 BE
+        yield return Encoding.UTF32; // UTF-32 LE
+        yield return new UTF32Encoding(true, true); // UTF-32 BE
+    }
+
+    [TestCaseSource(nameof(BomEncodings))]
+    public async Task Files_with_bom_are_detected_and_preserved(Encoding bomEncoding)
+    {
+        // The UTF-32 LE BOM starts with the UTF-16 LE BOM (FF FE), so the order of detection matters.
+        File.WriteAllBytes(PathOf("file.txt"), [.. bomEncoding.GetPreamble(), .. bomEncoding.GetBytes("Grüße byte\r\n")]);
+
+        var results = await SearchAsync("ü", encodingWithoutBom: FileSearchService.AnsiEncoding);
+        Assert.That(results.Single().Encoding.CodePage, Is.EqualTo(bomEncoding.CodePage));
+
+        results = await SearchAsync("byte");
+        var replaced = await ReplaceAsync(results, "foo");
+
+        Assert.That(replaced.Success, Is.True, string.Join("\n", replaced.Errors));
+        Assert.That(File.ReadAllBytes(PathOf("file.txt")),
+            Is.EqualTo((byte[])[.. bomEncoding.GetPreamble(), .. bomEncoding.GetBytes("Grüße foo\r\n")]));
     }
 }

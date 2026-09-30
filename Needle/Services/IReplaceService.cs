@@ -10,6 +10,12 @@ public interface IReplaceService
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+///     The file was modified after the search. The found positions are no longer valid.
+/// </summary>
+public class FileChangedException()
+    : InvalidOperationException("The file has changed since the search. Please search again.");
+
 public class ReplaceResult
 {
     private int _filesModified;

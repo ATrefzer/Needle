@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Needle.Models;
 
@@ -30,6 +31,11 @@ public partial class SearchParameters
     public Regex? Regex { get; init; }
     public bool IsCaseSensitive { get; init; }
     public bool IncludeSubdirectories { get; init; } = true;
+
+    /// <summary>
+    ///     Used to read files without BOM. Files with BOM are read with the encoding of the BOM.
+    /// </summary>
+    public Encoding EncodingWithoutBom { get; init; } = new UTF8Encoding(false);
 
     public List<Regex> CreateFilePatterns()
     {

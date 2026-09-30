@@ -18,6 +18,7 @@ public class UserSettings
     public bool IsCaseSensitive { get; set; }
     public bool IncludeSubdirectories { get; set; } = true;
     public SearchScope SearchScope { get; set; } = SearchScope.Content;
+    public int EncodingWithoutBomCodePage { get; set; } = 65001; // UTF-8
     public List<string> FileMasksHistory { get; set; } = new();
 
     public static UserSettings Load()

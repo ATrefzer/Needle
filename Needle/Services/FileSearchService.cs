@@ -36,6 +36,7 @@ public class FileSearchService : ISearchService
         // Create channel for producer-consumer pattern
         var channel = Channel.CreateUnbounded<string>();
 
+        // Created once per search, because the regexes are compiled.
         var filePatterns = parameters.CreateFilePatterns();
 
         // Producer: Enumerate files in background
@@ -71,20 +72,20 @@ public class FileSearchService : ISearchService
                 CancellationToken = cancellationToken
             },
             async (filePath, ct) =>
-                await ProcessSingleFileAsync(filePath, parameters, ct).ConfigureAwait(false)
+                await ProcessSingleFileAsync(filePath, parameters, filePatterns, ct).ConfigureAwait(false)
         );
 
         await producerTask;
     }
 
     private async Task ProcessSingleFileAsync(string filePath, SearchParameters parameters,
-        CancellationToken cancellationToken)
+        List<Regex> filePatterns, CancellationToken cancellationToken)
     {
         try
         {
             if (IsZip(filePath))
             {
-                await SearchInArchiveAsync(filePath, parameters, cancellationToken);
+                await SearchInArchiveAsync(filePath, parameters, filePatterns, cancellationToken);
                 return;
             }
 
@@ -108,12 +109,10 @@ public class FileSearchService : ISearchService
     }
 
     private async Task SearchInArchiveAsync(string zipFilePath, SearchParameters parameters,
-        CancellationToken cancellationToken)
+        List<Regex> filePatterns, CancellationToken cancellationToken)
     {
         try
         {
-            var filePatterns = parameters.CreateFilePatterns();
-
             await using var archive = await ZipFile.OpenReadAsync(zipFilePath, cancellationToken);
 
             foreach (var entry in archive.Entries)
@@ -135,7 +134,7 @@ public class FileSearchService : ISearchService
                     var lineNumber = 0;
 
                     await using var entryStream = await entry.OpenAsync(cancellationToken);
-                    using var reader = new StreamReader(entryStream);
+                    using var reader = new StreamReader(entryStream, parameters.EncodingWithoutBom);
 
                     while (await reader.ReadLineAsync(cancellationToken) is { } line)
                     {
@@ -204,10 +203,11 @@ public class FileSearchService : ISearchService
 
             // Extra step if I want to prevent writing a BOM when the original file did not have one.
             // Jump back to beginning after detecting encoding is faster than opening the file twice.
-            var encoding = DetectEncoding(stream);
+            // Invalid bytes are decoded as replacement characters here. Replacing is strict and refuses such files.
+            var encoding = DetectBomEncoding(stream) ?? parameters.EncodingWithoutBom;
             stream.Seek(0, SeekOrigin.Begin);
 
-            using var reader = new StreamReader(stream, encoding);
+            using var reader = new StreamReader(stream, encoding, false, BufferSize);
 
             var lineNumber = 0;
 
@@ -247,32 +247,37 @@ public class FileSearchService : ISearchService
 
 
     /// <summary>
-    ///     If the file has no preamble the preamble bytes in the returned encoding are empty.
+    ///     Returns null if the file has no BOM.
     /// </summary>
-    public static Encoding DetectEncoding(string filePath)
+    public static Encoding? DetectBomEncoding(string filePath)
     {
-        // Read BOM bytes
-        var bom = new byte[4];
+        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+        return DetectBomEncoding(file);
+    }
 
-        var bomLength = 0;
-        using (var file = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+    private static Encoding? DetectBomEncoding(FileStream stream)
+    {
+        var bom = new byte[4];
+        var bomLength = stream.ReadAtLeast(bom, bom.Length, false);
+        return DetectBomEncoding(bom, bomLength);
+    }
+
+    /// <summary>
+    ///     Returns null if there is no BOM.
+    /// </summary>
+    private static Encoding? DetectBomEncoding(byte[] bom, int bomLength)
+    {
+        // UTF-32 LE before UTF-16 LE, because both BOMs start with FF FE.
+        if (bomLength >= 4 && bom[0] == 0xFF && bom[1] == 0xFE && bom[2] == 0x00 && bom[3] == 0x00)
         {
-            bomLength = file.Read(bom, 0, 4);
+            return Encoding.UTF32; // UTF-32 LE
         }
 
-        return DetectEncoding(bom, bomLength);
-    }
+        if (bomLength >= 4 && bom[0] == 0x00 && bom[1] == 0x00 && bom[2] == 0xFE && bom[3] == 0xFF)
+        {
+            return new UTF32Encoding(true, true); // UTF-32 BE
+        }
 
-    private static Encoding DetectEncoding(FileStream stream)
-    {
-        var bom = new byte[4];
-        var bomLength = stream.Read(bom, 0, 4);
-        return DetectEncoding(bom, bomLength);
-    }
-
-    private static Encoding DetectEncoding(byte[] bom, int bomLength)
-    {
-        // Detect bom
         if (bomLength >= 3 && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF)
         {
             return new UTF8Encoding(true); // UTF-8 with BOM
@@ -288,13 +293,29 @@ public class FileSearchService : ISearchService
             return Encoding.BigEndianUnicode; // UTF-16 BE
         }
 
-        if (bomLength >= 4 && bom[0] == 0xFF && bom[1] == 0xFE && bom[2] == 0x00 && bom[3] == 0x00)
-        {
-            return Encoding.UTF32;
-        }
+        return null;
+    }
 
-        // No BOM = UTF-8 without BOM (Standard for text files)
-        return new UTF8Encoding(false);
+    /// <summary>
+    ///     The ANSI code page of the system, like Windows-1252 for western languages.
+    ///     Can be selected for files without BOM.
+    /// </summary>
+    public static Encoding AnsiEncoding { get; } = CreateAnsiEncoding();
+
+    private const int WesternEuropeanCodePage = 1252;
+
+    private static Encoding CreateAnsiEncoding()
+    {
+        // Code pages are not available in .NET by default. We have to register them.
+        // Afterwards, code page 0 is the system's ANSI code page.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var systemAnsi = Encoding.GetEncoding(0);
+
+        // With the Windows option "Use Unicode UTF-8 for worldwide language support" the ANSI code page is UTF-8.
+        // It would be the same as the UTF-8 option then.
+        return systemAnsi.CodePage == Encoding.UTF8.CodePage
+            ? Encoding.GetEncoding(WesternEuropeanCodePage)
+            : systemAnsi;
     }
 
 
@@ -302,9 +323,7 @@ public class FileSearchService : ISearchService
         bool includeSubdirectories,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var files = SafeEnumerateFiles(directory, includeSubdirectories);
+        var files = SafeEnumerateFiles(directory, includeSubdirectories, cancellationToken);
 
         foreach (var file in files)
         {
@@ -319,15 +338,17 @@ public class FileSearchService : ISearchService
     /// <summary>
     ///     Enumerates files recursively while tolerating inaccessible subdirectories,
     ///     instead of letting one bad folder abort the entire scan.
+    ///     Files are yielded per directory, so the search can start before the whole tree is enumerated.
     /// </summary>
-    private static IEnumerable<string> SafeEnumerateFiles(string path, bool includeSubdirectories)
+    private static IEnumerable<string> SafeEnumerateFiles(string path, bool includeSubdirectories,
+        CancellationToken cancellationToken)
     {
-        var result = new List<string>();
         var pending = new Stack<string>();
         pending.Push(path);
 
         while (pending.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var current = pending.Pop();
 
             string[] subDirs;
@@ -347,22 +368,25 @@ public class FileSearchService : ISearchService
                 continue;
             }
 
-            result.AddRange(files);
-
             if (includeSubdirectories)
             {
                 foreach (var dir in subDirs)
                 {
+                    // The git repository contains only internal data, but a lot of it.
                     var folderName = Path.GetFileName(dir);
-                    if (!folderName.StartsWith("."))
+                    if (!folderName.Equals(".git", StringComparison.OrdinalIgnoreCase))
                     {
                         pending.Push(dir);
                     }
                 }
             }
-        }
 
-        return result;
+            // Not possible inside the try block above.
+            foreach (var file in files)
+            {
+                yield return file;
+            }
+        }
     }
 
     private static ulong SearchInLine(string filePath, string line, SearchParameters parameters, int lineNumber,

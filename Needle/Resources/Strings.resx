@@ -153,6 +153,15 @@ Please install Notepad++ or add it to your PATH environment variable.</value>
     <data name="SearchScope_Both" xml:space="preserve">
         <value>File content and name</value>
     </data>
+    <data name="Label_Encoding" xml:space="preserve">
+        <value>Encoding:</value>
+    </data>
+    <data name="Tooltip_Encoding" xml:space="preserve">
+        <value>Encoding for files without byte order mark (BOM).
+Files with BOM are always read with the encoding of the BOM.
+
+Replacing refuses files that are not valid in the selected encoding.</value>
+    </data>
     <data name="Label_FileNameMatch" xml:space="preserve">
         <value>Name</value>
     </data>

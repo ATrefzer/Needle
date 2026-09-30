@@ -1,32 +1,11 @@
-using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
-using Needle.Models;
 using Needle.Services;
 using NUnit.Framework;
 
 namespace NeedleTests;
 
 [TestFixture]
-public class FileNameTests
+public class FileNameTests : TempDirectoryTestBase
 {
-    private string _directory = string.Empty;
-
-    [SetUp]
-    public void SetUp()
-    {
-        _directory = Path.Combine(Path.GetTempPath(), "NeedleTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_directory);
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_directory))
-        {
-            Directory.Delete(_directory, true);
-        }
-    }
-
     [Test]
     public async Task FileName_scope_finds_matches_in_file_name_only()
     {
@@ -182,50 +161,5 @@ public class FileNameTests
         Assert.That(replaced.TotalReplacements, Is.EqualTo(1));
         Assert.That(FileNames(), Is.EquivalentTo(new[] { "foo.txt" }));
         Assert.That(File.ReadAllText(PathOf("foo.txt")).TrimEnd(), Is.EqualTo("bar"));
-    }
-
-    private async Task<List<SearchResult>> SearchAsync(string pattern, SearchScope scope, bool isRegex = false,
-        bool isCaseSensitive = false)
-    {
-        var parameters = new SearchParameters
-        {
-            Scope = scope,
-            StartDirectory = _directory,
-            FileMasks = "*.*",
-            Pattern = pattern,
-            Regex = isRegex
-                ? new Regex(pattern, isCaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase)
-                : null,
-            IsCaseSensitive = isCaseSensitive,
-            IncludeSubdirectories = false
-        };
-
-        // Events are raised from parallel workers.
-        var results = new ConcurrentBag<SearchResult>();
-        var service = new FileSearchService();
-        service.FileCompleted += (_, result) => results.Add(result);
-
-        await service.SearchAsync(parameters, CancellationToken.None);
-        return results.ToList();
-    }
-
-    private static Task<ReplaceResult> ReplaceAsync(IEnumerable<SearchResult> results, string replacement)
-    {
-        return new FileReplaceService().ReplaceInFilesAsync(results, replacement, CancellationToken.None);
-    }
-
-    private void CreateFile(string name, string content)
-    {
-        File.WriteAllText(PathOf(name), content);
-    }
-
-    private string PathOf(string name)
-    {
-        return Path.Combine(_directory, name);
-    }
-
-    private string[] FileNames()
-    {
-        return Directory.GetFiles(_directory).Select(Path.GetFileName).ToArray()!;
     }
 }

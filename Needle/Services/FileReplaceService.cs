@@ -106,6 +106,7 @@ public class FileReplaceService : IReplaceService
         var filePath = searchResult.FilePath;
         var oldName = Path.GetFileName(filePath);
         var sortedMatches = fileNameMatches.OrderBy(m => m.StartIndex).ToList();
+        EnsureUnchanged(oldName, sortedMatches, searchResult.Parameters);
 
         var regex = searchResult.Parameters.Regex;
         var newName = regex != null
@@ -139,38 +140,49 @@ public class FileReplaceService : IReplaceService
         string replacementText,
         CancellationToken cancellationToken)
     {
-        // Read entire file
+        // The search decodes invalid bytes as replacement characters. Writing them back would corrupt the file.
+        // So we read strict here: If the file does not fit the encoding, we don't touch it.
+        var strictEncoding = CreateStrictEncoding(searchResult.Encoding);
+        EnsureEncodable(strictEncoding, replacementText);
+
         string[] lines;
         try
         {
-            lines = await File.ReadAllLinesAsync(searchResult.FilePath, cancellationToken);
+            lines = await File.ReadAllLinesAsync(searchResult.FilePath, strictEncoding, cancellationToken);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new InvalidOperationException(
+                $"The file is not valid {searchResult.Encoding.WebName}. Select the file's encoding and search again.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             throw new InvalidOperationException($"Cannot read file: {ex.Message}", ex);
         }
 
-        var replacementCount = 0;
-
-        // Group matches by line number
+        // Matches are replaced left to right within a line.
         var matchesByLine = selectedMatches
             .GroupBy(m => m.LineNumber)
-            .OrderByDescending(g => g.Key); // Process in reverse to maintain positions
+            .Select(g => (LineIndex: g.Key - 1, Matches: g.OrderBy(m => m.StartIndex).ToList()))
+            .ToList();
 
-        foreach (var lineGroup in matchesByLine)
+        // The positions are taken from the search. If the file was modified in the meantime, we would
+        // replace the wrong text. Check all matches before modifying anything.
+        foreach (var (lineIndex, sortedMatches) in matchesByLine)
         {
-            var lineIndex = lineGroup.Key - 1; // Convert to 0-based index
             if (lineIndex < 0 || lineIndex >= lines.Length)
             {
-                continue;
+                throw new FileChangedException();
             }
 
-            var originalLine = lines[lineIndex];
+            EnsureUnchanged(lines[lineIndex], sortedMatches, searchResult.Parameters);
+        }
 
-            // Sort matches by StartIndex descending to replace from end to start
-            // This preserves the positions of earlier matches
-            // Sort matches by StartIndex ASCENDING - natural for left-to-right processing
-            var sortedMatches = lineGroup.OrderBy(m => m.StartIndex).ToList();
+        var replacementCount = 0;
+
+        foreach (var (lineIndex, sortedMatches) in matchesByLine)
+        {
+            var originalLine = lines[lineIndex];
 
             var regex = searchResult.Parameters.Regex;
             string newLine;
@@ -196,6 +208,65 @@ public class FileReplaceService : IReplaceService
         return replacementCount;
     }
 
+    /// <summary>
+    ///     Same code page, but throws on invalid bytes and on characters that cannot be encoded.
+    ///     Only for reading and checking. Writing uses the original encoding, because it knows whether to write a BOM.
+    /// </summary>
+    private static Encoding CreateStrictEncoding(Encoding encoding)
+    {
+        return Encoding.GetEncoding(encoding.CodePage, EncoderFallback.ExceptionFallback,
+            DecoderFallback.ExceptionFallback);
+    }
+
+    /// <summary>
+    ///     A file in the ANSI code page cannot store every character. Without this check, such
+    ///     characters would silently be written as '?'.
+    /// </summary>
+    private static void EnsureEncodable(Encoding strictEncoding, string text)
+    {
+        try
+        {
+            strictEncoding.GetByteCount(text);
+        }
+        catch (EncoderFallbackException)
+        {
+            throw new InvalidOperationException(
+                $"The replacement text contains characters that cannot be stored in the file's encoding ({strictEncoding.WebName})");
+        }
+    }
+
+    /// <summary>
+    ///     Throws if the text at the matches' positions does no longer match the search pattern.
+    /// </summary>
+    private static void EnsureUnchanged(string line, List<MatchLine> matches, SearchParameters parameters)
+    {
+        if (!matches.All(match => IsUnchanged(line, match, parameters)))
+        {
+            throw new FileChangedException();
+        }
+    }
+
+    private static bool IsUnchanged(string line, MatchLine match, SearchParameters parameters)
+    {
+        if (match.StartIndex < 0 || match.StartIndex + match.Length > line.Length)
+        {
+            return false;
+        }
+
+        if (parameters.Regex != null)
+        {
+            // Search the whole line (not only the matched part), so lookarounds and anchors behave as in the search.
+            var regexMatch = parameters.Regex.Match(line, match.StartIndex);
+            return regexMatch.Success && regexMatch.Index == match.StartIndex && regexMatch.Length == match.Length;
+        }
+
+        var comparison = parameters.IsCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        return line.AsSpan(match.StartIndex, match.Length).Equals(parameters.Pattern, comparison);
+    }
+
+    /// <summary>
+    ///     All matches must be verified by <see cref="EnsureUnchanged" /> before.
+    /// </summary>
     private static string ReplaceMultipleInLine(
         string line,
         List<MatchLine> sortedMatches,
@@ -219,11 +290,6 @@ public class FileReplaceService : IReplaceService
             // Process matches from start to end (already sorted ascending)
             foreach (var match in state.sortedMatches)
             {
-                if (match.StartIndex < 0 || match.StartIndex + match.Length > sourceSpan.Length)
-                {
-                    continue;
-                }
-
                 // Copy everything before the match
                 var beforeLength = match.StartIndex - sourcePos;
                 if (beforeLength > 0)
@@ -249,6 +315,9 @@ public class FileReplaceService : IReplaceService
     }
 
 
+    /// <summary>
+    ///     All matches must be verified by <see cref="EnsureUnchanged" /> before.
+    /// </summary>
     private static string ReplaceMultipleRegexInLine(
         string line,
         List<MatchLine> sortedMatches,
@@ -266,26 +335,13 @@ public class FileReplaceService : IReplaceService
 
         foreach (var matchLine in sortedMatches)
         {
-            if (matchLine.StartIndex < 0 || matchLine.StartIndex + matchLine.Length > line.Length)
-            {
-                continue;
-            }
+            // Match on the whole line starting at the verified position (see IsUnchanged).
+            var match = regex.Match(line, matchLine.StartIndex);
 
-            // Match on the original line at the exact position
-            var match = regex.Match(line, matchLine.StartIndex, matchLine.Length);
-
-            if (match.Success && match.Index == matchLine.StartIndex && match.Length == matchLine.Length)
-            {
-                // Perform replacement with capture group support
-                var replacedText = match.Result(replacement);
-                replacements.Add((matchLine.StartIndex, matchLine.Length, replacedText));
-                totalLengthDelta += replacedText.Length - matchLine.Length;
-            }
-        }
-
-        if (replacements.Count == 0)
-        {
-            return line;
+            // Perform replacement with capture group support
+            var replacedText = match.Result(replacement);
+            replacements.Add((matchLine.StartIndex, matchLine.Length, replacedText));
+            totalLengthDelta += replacedText.Length - matchLine.Length;
         }
 
         // Second pass: build the new string with all replacements
