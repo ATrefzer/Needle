@@ -132,6 +132,15 @@ namespace Needle.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Options:.
+        /// </summary>
+        public static string Label_Options {
+            get {
+                return ResourceManager.GetString("Label_Options", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Encoding:.
         /// </summary>
         public static string Label_Encoding {

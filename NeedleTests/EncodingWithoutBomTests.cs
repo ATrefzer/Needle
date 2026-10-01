@@ -50,7 +50,7 @@ public class EncodingWithoutBomTests : TempDirectoryTestBase
         var replaced = await ReplaceAsync(results, "foo");
 
         Assert.That(replaced.Success, Is.True, string.Join("\n", replaced.Errors));
-        Assert.That(File.ReadAllBytes(PathOf("file.bin")), Is.EqualTo((byte[])[.. "foo "u8, .. nonAscii, .. "\r\n"u8]));
+        Assert.That(File.ReadAllBytes(PathOf("file.bin")), Is.EqualTo((byte[])[.. "foo "u8, .. nonAscii]));
     }
 
     [Test]

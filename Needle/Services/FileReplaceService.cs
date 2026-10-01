@@ -16,6 +16,7 @@ namespace Needle.Services;
 public class FileReplaceService : IReplaceService
 {
     private const int MaxDegreeOfParallelism = 8;
+    private const int BufferSize = 81920;
 
     public Task<ReplaceResult> ReplaceInFilesAsync(IEnumerable<SearchResult> searchResults,
         string replacementText,
@@ -38,17 +39,16 @@ public class FileReplaceService : IReplaceService
                 MaxDegreeOfParallelism = MaxDegreeOfParallelism,
                 CancellationToken = cancellationToken
             },
-            async (searchResult, ct) => await ProcessSingleFileAsync(searchResult, replacementText, resultToFill, ct)
-                .ConfigureAwait(false)
-        );
+            (searchResult, ct) =>
+            {
+                ProcessSingleFile(searchResult, replacementText, resultToFill, ct);
+                return ValueTask.CompletedTask;
+            });
 
         return resultToFill;
     }
 
-    /// <summary>
-    ///     Returns the number of replacements
-    /// </summary>
-    private async Task ProcessSingleFileAsync(SearchResult searchResult, string replacementText, ReplaceResult result,
+    private static void ProcessSingleFile(SearchResult searchResult, string replacementText, ReplaceResult result,
         CancellationToken cancellationToken)
     {
         if (searchResult.IsArchive)
@@ -76,7 +76,7 @@ public class FileReplaceService : IReplaceService
             // Content first because the rename invalidates the file path.
             if (contentMatches.Count > 0)
             {
-                replacementCount += await ReplaceInFileAsync(
+                replacementCount += ReplaceInFile(
                     searchResult,
                     contentMatches,
                     replacementText,
@@ -134,83 +134,127 @@ public class FileReplaceService : IReplaceService
         File.Move(filePath, newPath, false);
     }
 
-    private static async Task<int> ReplaceInFileAsync(
+    /// <summary>
+    ///     Only the lines with matches are decoded and modified. All other bytes, including all line breaks,
+    ///     are copied unchanged. The result is written to a temporary file that replaces the original at the end,
+    ///     so the original is untouched if anything fails.
+    /// </summary>
+    private static int ReplaceInFile(
         SearchResult searchResult,
         List<MatchLine> selectedMatches,
         string replacementText,
         CancellationToken cancellationToken)
     {
         // The search decodes invalid bytes as replacement characters. Writing them back would corrupt the file.
-        // So we read strict here: If the file does not fit the encoding, we don't touch it.
+        // So we decode strict here: If the file does not fit the encoding, we don't touch it.
         var strictEncoding = CreateStrictEncoding(searchResult.Encoding);
         EnsureEncodable(strictEncoding, replacementText);
-
-        string[] lines;
-        try
-        {
-            lines = await File.ReadAllLinesAsync(searchResult.FilePath, strictEncoding, cancellationToken);
-        }
-        catch (DecoderFallbackException)
-        {
-            throw new InvalidOperationException(
-                $"The file is not valid {searchResult.Encoding.WebName}. Select the file's encoding and search again.");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            throw new InvalidOperationException($"Cannot read file: {ex.Message}", ex);
-        }
 
         // Matches are replaced left to right within a line.
         var matchesByLine = selectedMatches
             .GroupBy(m => m.LineNumber)
-            .Select(g => (LineIndex: g.Key - 1, Matches: g.OrderBy(m => m.StartIndex).ToList()))
-            .ToList();
+            .ToDictionary(g => g.Key, g => g.OrderBy(m => m.StartIndex).ToList());
 
-        // The positions are taken from the search. If the file was modified in the meantime, we would
-        // replace the wrong text. Check all matches before modifying anything.
-        foreach (var (lineIndex, sortedMatches) in matchesByLine)
+        var rewrittenLines = 0;
+
+        byte[] RewriteLine(int lineNumber, ReadOnlyMemory<byte> bytes)
         {
-            if (lineIndex < 0 || lineIndex >= lines.Length)
+            rewrittenLines++;
+            var line = DecodeLine(bytes.Span, strictEncoding, searchResult.Encoding);
+            var sortedMatches = matchesByLine[lineNumber];
+
+            // The positions are taken from the search. If the file was modified in the meantime, we would
+            // replace the wrong text.
+            EnsureUnchanged(line, sortedMatches, searchResult.Parameters);
+
+            var regex = searchResult.Parameters.Regex;
+            var newLine = regex != null
+                ? ReplaceMultipleRegexInLine(line, sortedMatches, regex, replacementText)
+                : ReplaceMultipleInLine(line, sortedMatches, replacementText);
+
+            return strictEncoding.GetBytes(newLine);
+        }
+
+        var filePath = searchResult.FilePath;
+        var tempPath = Path.Combine(Path.GetDirectoryName(filePath)!,
+            $"{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.needle.tmp");
+
+        try
+        {
+            using (var input = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                       BufferSize, FileOptions.SequentialScan))
+            using (var output = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                       BufferSize))
+            {
+                CopyPreamble(input, output, searchResult.Encoding);
+                LineRewriter.Rewrite(input, output, searchResult.Encoding, matchesByLine.ContainsKey, RewriteLine,
+                    cancellationToken);
+            }
+
+            // Lines behind the end of the file were not visited.
+            if (rewrittenLines != matchesByLine.Count)
             {
                 throw new FileChangedException();
             }
 
-            EnsureUnchanged(lines[lineIndex], sortedMatches, searchResult.Parameters);
+            // Keeps the attributes and permissions of the original file.
+            File.Replace(tempPath, filePath, null);
         }
-
-        var replacementCount = 0;
-
-        foreach (var (lineIndex, sortedMatches) in matchesByLine)
+        finally
         {
-            var originalLine = lines[lineIndex];
-
-            var regex = searchResult.Parameters.Regex;
-            string newLine;
-            if (regex != null)
-            {
-                newLine = ReplaceMultipleRegexInLine(originalLine, sortedMatches,
-                    regex, replacementText);
-            }
-            else
-            {
-                newLine = ReplaceMultipleInLine(originalLine, sortedMatches,
-                    replacementText);
-            }
-
-
-            lines[lineIndex] = newLine;
-            replacementCount += sortedMatches.Count;
+            File.Delete(tempPath);
         }
 
-        // Write back to file
-        await File.WriteAllLinesAsync(searchResult.FilePath, lines, searchResult.Encoding, cancellationToken);
+        return selectedMatches.Count;
+    }
 
-        return replacementCount;
+    /// <summary>
+    ///     The BOM is copied unchanged. The line numbers of the search start after it.
+    /// </summary>
+    private static void CopyPreamble(Stream input, Stream output, Encoding encoding)
+    {
+        var preamble = encoding.GetPreamble();
+        if (preamble.Length == 0)
+        {
+            return;
+        }
+
+        var bytes = new byte[preamble.Length];
+        var read = input.ReadAtLeast(bytes, bytes.Length, false);
+        if (read != bytes.Length || !bytes.AsSpan().SequenceEqual(preamble))
+        {
+            throw new FileChangedException();
+        }
+
+        output.Write(bytes);
+    }
+
+    private static string DecodeLine(ReadOnlySpan<byte> bytes, Encoding strictEncoding, Encoding encoding)
+    {
+        string line;
+        try
+        {
+            line = strictEncoding.GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new InvalidOperationException(
+                $"The file is not valid {encoding.WebName}. Select the file's encoding and search again.");
+        }
+
+        // The unchanged parts of the line must be written back exactly. Some code pages cannot guarantee this.
+        if (!strictEncoding.GetBytes(line).AsSpan().SequenceEqual(bytes))
+        {
+            throw new InvalidOperationException(
+                $"The file cannot be written back unchanged in {encoding.WebName}.");
+        }
+
+        return line;
     }
 
     /// <summary>
     ///     Same code page, but throws on invalid bytes and on characters that cannot be encoded.
-    ///     Only for reading and checking. Writing uses the original encoding, because it knows whether to write a BOM.
+    ///     Used for single lines only, the BOM is copied separately.
     /// </summary>
     private static Encoding CreateStrictEncoding(Encoding encoding)
     {

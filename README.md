@@ -14,7 +14,8 @@ A simple and fast text search and replace tool for Windows.
 |---|---|
 | Start directory | Directory to search in. |
 | File mask | One or more masks separated by `;`, `,` or `\|`, e.g. `*.cs;*.xaml`. The last 10 masks are kept in the drop-down. |
-| Text | Plain text, or a .NET regular expression if *Regex* is checked. |
+| Text | Plain text, or a .NET regular expression if *Regex* is checked. The search works line by line, so a match cannot span several lines. |
+| Replace with | Replacement text, see [Replacing](#replacing). |
 | Search in | *File content*, *File name* or both. |
 | Encoding | Encoding for files without byte order mark (BOM), see [Encoding](#encoding). |
 | Case sensitive | Applies to plain text and regular expressions. |
@@ -42,6 +43,8 @@ Files without BOM are read with the encoding selected in *Encoding*: UTF-8 (defa
 
 The search tolerates a wrong encoding: ASCII text is still found, only non-ASCII characters may not match.
 
+Binary files are searched like text files. Set *Encoding* to ANSI to find ASCII strings reliably, because every byte is one character then. Strings stored as UTF-16 (common in Windows and .NET binaries) are not found.
+
 ## Replacing
 
 *Replace* replaces all matches in the current result with the text in *Replace with*. With *Regex*, the replacement can refer to capture groups, e.g. `$1`.
@@ -52,20 +55,15 @@ Replacing never guesses, it refuses files instead of risking to corrupt them. A 
 - the file is not valid in its encoding (e.g. an ANSI file searched as UTF-8),
 - the replacement text contains characters that cannot be stored in the file's encoding (e.g. `→` in Windows-1252).
 
-The encoding is preserved: files with BOM keep their BOM, files without BOM are written in the selected encoding.
+Only the matched text is modified. All other bytes stay unchanged, including the BOM, the line endings (CR LF, LF or CR, even mixed) and a missing line break at the end of the file. This also allows replacing text in binary files, e.g. a version string, if *Encoding* is set to ANSI.
+
+The file is written to a temporary file first, which replaces the original at the end. If anything fails, the original file is untouched. Large files are processed without loading them into memory.
 
 After replacing, the result list is not updated. Search again before replacing a second time.
 
 ### Renaming Files
 
 Matches in file names rename the file. The content is modified first and the file is renamed afterwards. A rename is refused if the new name is invalid or a file with that name already exists. Only files are renamed, not directories.
-
-### Limitations
-
-Replacing processes the file line by line:
-
-- All line endings are written as CRLF, and a line break is appended at the end of the file.
-- **Do not replace in binary files.** Searching them is fine, but replacing changes every line break byte and corrupts the file.
 
 ## Development
 
