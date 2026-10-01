@@ -8,6 +8,8 @@ public class MatchLine : INotifyPropertyChanged
     private bool _isSelected = true;
 
     public const int MaxDisplayLength = 150;
+    public const int ContextBeforeMatch = 40;
+
     public int LineNumber { get; set; }
 
     /// <summary>
@@ -60,26 +62,56 @@ public class MatchLine : INotifyPropertyChanged
         return true;
     }
 
-    public string SafeText => Text.Length < MaxDisplayLength ? Text : Truncate();
-
     /// <summary>
     /// Redundant with SearchResult.FilePath, but simplifies the binding.
     /// </summary>
     public string FilePath { get; init; } = string.Empty;
 
-    private string Truncate()
-    {
-        var available = Text.Length - StartIndex;
-        var length = Math.Min(MaxDisplayLength, available);
+    // The display text is split into the text before the match, the match and the text after it, so the match
+    // can be highlighted. Computed on demand: Only for displayed matches, not during the search.
 
-        var prefix = "(truncated) ... ";
-        var postfix = string.Empty;
-        if (length != available)
+    public string DisplayBefore => GetDisplayParts().Before;
+    public string DisplayMatch => GetDisplayParts().Match;
+    public string DisplayAfter => GetDisplayParts().After;
+
+    /// <summary>
+    ///     Long lines are cut around the match, with some context before it.
+    /// </summary>
+    internal (string Before, string Match, string After) GetDisplayParts()
+    {
+        const string ellipsis = "…";
+
+        // A very long match (e.g. regex ".*") is cut, too.
+        var matchLength = Math.Min(Length, MaxDisplayLength);
+        var matchEnd = StartIndex + matchLength;
+
+        var start = 0;
+        var end = Text.Length;
+        if (Text.Length > MaxDisplayLength)
         {
-            postfix = " ...";
+            start = Math.Max(0, StartIndex - ContextBeforeMatch);
+            end = Math.Min(Text.Length, Math.Max(matchEnd, start + MaxDisplayLength));
         }
 
-        var truncated = Text.AsSpan(StartIndex, length);
-        return string.Concat(prefix, truncated, postfix);
+        var before = Text[start..StartIndex];
+        var match = Text[StartIndex..matchEnd];
+        var after = Text[matchEnd..end];
+
+        if (start > 0)
+        {
+            before = ellipsis + before;
+        }
+
+        if (matchLength < Length)
+        {
+            match += ellipsis;
+            after = string.Empty;
+        }
+        else if (end < Text.Length)
+        {
+            after += ellipsis;
+        }
+
+        return (before, match, after);
     }
 }

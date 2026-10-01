@@ -21,6 +21,7 @@
         <SolidColorBrush x:Key="MatchesBrush" Color="#fafafa" />
         <SolidColorBrush x:Key="LineNumberBrush" Color="#e5e5e5" />
         <SolidColorBrush x:Key="FileNameMatchBrush" Color="#cce4f7" />
+        <SolidColorBrush x:Key="MatchHighlightBrush" Color="#ffe58a" />
         <SolidColorBrush x:Key="OverlayBrush" Color="#80000000" />
 
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -138,8 +139,15 @@
                                         <TextBlock Text="{Binding LineLabel}" Foreground="{StaticResource TextLightBrush}" FontFamily="Consolas"
                                                    TextAlignment="Right" />
                                     </Border>
-                                    <TextBlock Text="{Binding SafeText}" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
-                                               FontFamily="Consolas" />
+                                    <!-- The match is highlighted. A line with several matches is listed once per
+                                         match, each row highlights its own match. -->
+                                    <TextBlock Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
+                                               FontFamily="Consolas">
+                                        <Run Text="{Binding DisplayBefore, Mode=OneWay}" /><Run
+                                            Text="{Binding DisplayMatch, Mode=OneWay}"
+                                            Background="{StaticResource MatchHighlightBrush}" FontWeight="Bold" /><Run
+                                            Text="{Binding DisplayAfter, Mode=OneWay}" />
+                                    </TextBlock>
                                 </DockPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

@@ -23,7 +23,7 @@ A simple and fast text search and replace tool for Windows.
 
 All files matching the file mask are searched, including hidden, system and binary files. The `.git` directory is skipped. Files and directories that cannot be read, like locked files, files without access or broken ZIP archives, are skipped and counted in the status bar.
 
-Click a file to expand its matches. The context menu opens a file in Explorer or a match in Notepad++.
+Click a file to expand its matches. The match is highlighted in its line. A line with several matches is listed once per match, each row highlights its own match. Long lines are cut around the match. The context menu opens a file in Explorer or a match in Notepad++.
 
 ### File Names
 
