@@ -376,6 +376,8 @@ public class MainViewModel : INotifyPropertyChanged
             StatusMessage = $"Error: {ex.Message}";
         }
 
+        StatusMessage += FormatSkipped(searchService);
+
         // Regardless if we canceled or completed, update available results
 
         ProgressMessage = "Updating Ui";
@@ -390,6 +392,25 @@ public class MainViewModel : INotifyPropertyChanged
     }
 
 
+    /// <summary>
+    ///     Otherwise, the user does not notice that files are missing in the result.
+    /// </summary>
+    private static string FormatSkipped(ISearchService searchService)
+    {
+        var skipped = new List<string>();
+        if (searchService.SkippedFiles > 0)
+        {
+            skipped.Add($"{searchService.SkippedFiles} files");
+        }
+
+        if (searchService.SkippedDirectories > 0)
+        {
+            skipped.Add($"{searchService.SkippedDirectories} directories");
+        }
+
+        return skipped.Count > 0 ? $" - skipped {string.Join(" and ", skipped)} (no access or not readable)" : "";
+    }
+
     private void CancelSearch()
     {
         _cts?.Cancel();
@@ -397,12 +418,19 @@ public class MainViewModel : INotifyPropertyChanged
 
     private async void StartReplace()
     {
+        // Matches in archives cannot be replaced.
+        var selected = Results.Where(r => !r.IsArchive && r.Matches.Any(m => m.IsSelected)).ToList();
+        if (selected.Count == 0)
+        {
+            StatusMessage = "Nothing selected to replace";
+            return;
+        }
 
         var owner = Application.Current.MainWindow;
-        var renameCount = Results.Count(r => !r.IsArchive && r.Matches.Any(m => m.IsFileName && m.IsSelected));
+        var renameCount = selected.Count(r => r.Matches.Any(m => m.IsFileName && m.IsSelected));
         var question = renameCount > 0
-            ? $"Do you want to replace in {Results.Count} files?\n{renameCount} of them will be renamed."
-            : $"Do you want to replace in {Results.Count} files";
+            ? $"Do you want to replace in {selected.Count} files?\n{renameCount} of them will be renamed."
+            : $"Do you want to replace in {selected.Count} files?";
         var user = MessageBox.Show(owner!, question, "Replace",  MessageBoxButton.YesNo,  MessageBoxImage.Question);
         if (user == MessageBoxResult.No)
         {
@@ -421,9 +449,8 @@ public class MainViewModel : INotifyPropertyChanged
         var replaceService = new FileReplaceService();
         try
         {
-            // Note: isRegex and isCaseSensitive are now stored in each SearchResult
             var result = await replaceService.ReplaceInFilesAsync(
-                Results, ReplacementText,
+                selected, ReplacementText,
                 _cts.Token);
 
             if (result.Success)
@@ -444,9 +471,6 @@ public class MainViewModel : INotifyPropertyChanged
                         MessageBoxImage.Warning);
                 }
             }
-
-            // Optionally clear results after successful replace
-            // Results.Clear();
         }
         catch (OperationCanceledException)
         {
@@ -462,6 +486,8 @@ public class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
+            // The positions and paths in the result are outdated now, even if replacing failed or was canceled.
+            Results = [];
             IsBusy = false;
         }
     }

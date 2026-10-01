@@ -28,8 +28,21 @@ public class FileSearchService : ISearchService
         return Task.Run(() => SearchInternalAsync(parameters, cancellationToken), cancellationToken);
     }
 
+    private int _skippedDirectories;
+    private int _skippedFiles;
+
     public event EventHandler<SearchResult>? FileCompleted;
     public event EventHandler<ulong>? MatchFound;
+
+    /// <summary>
+    ///     Files that could not be read, like locked files, files without access or broken zip archives.
+    /// </summary>
+    public int SkippedFiles => _skippedFiles;
+
+    /// <summary>
+    ///     Directories that could not be enumerated, like directories without access.
+    /// </summary>
+    public int SkippedDirectories => _skippedDirectories;
 
     private async Task SearchInternalAsync(SearchParameters parameters, CancellationToken cancellationToken)
     {
@@ -105,6 +118,8 @@ public class FileSearchService : ISearchService
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
             // Skip files that can't be accessed
+            Interlocked.Increment(ref _skippedFiles);
+            Trace.WriteLine(ex.ToString());
         }
     }
 
@@ -158,9 +173,10 @@ public class FileSearchService : ISearchService
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Skip files that can't be read
+            // Skip archives that can't be read, like broken ones
+            Interlocked.Increment(ref _skippedFiles);
             Trace.WriteLine(ex.ToString());
         }
     }
@@ -195,48 +211,36 @@ public class FileSearchService : ISearchService
     private async Task SearchInFileAsync(string filePath, SearchParameters parameters, List<MatchLine> matches,
         CancellationToken cancellationToken)
     {
-        try
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            BufferSize,
+            FileOptions.SequentialScan | FileOptions.Asynchronous);
+
+        // Extra step if I want to prevent writing a BOM when the original file did not have one.
+        // Jump back to beginning after detecting encoding is faster than opening the file twice.
+        // Invalid bytes are decoded as replacement characters here. Replacing is strict and refuses such files.
+        var encoding = DetectBomEncoding(stream) ?? parameters.EncodingWithoutBom;
+        stream.Seek(0, SeekOrigin.Begin);
+
+        using var reader = new StreamReader(stream, encoding, false, BufferSize);
+
+        var lineNumber = 0;
+
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
-            await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
-                BufferSize,
-                FileOptions.SequentialScan | FileOptions.Asynchronous);
-
-            // Extra step if I want to prevent writing a BOM when the original file did not have one.
-            // Jump back to beginning after detecting encoding is faster than opening the file twice.
-            // Invalid bytes are decoded as replacement characters here. Replacing is strict and refuses such files.
-            var encoding = DetectBomEncoding(stream) ?? parameters.EncodingWithoutBom;
-            stream.Seek(0, SeekOrigin.Begin);
-
-            using var reader = new StreamReader(stream, encoding, false, BufferSize);
-
-            var lineNumber = 0;
-
-            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+            lineNumber++;
+            cancellationToken.ThrowIfCancellationRequested();
+            var matchesCount = SearchInLine(filePath, line, parameters, lineNumber, matches);
+            if (matchesCount > 0)
             {
-                lineNumber++;
-                cancellationToken.ThrowIfCancellationRequested();
-                var matchesCount = SearchInLine(filePath, line, parameters, lineNumber, matches);
-                if (matchesCount > 0)
-                {
-                    // Intermediate result for large files
-                    MatchFound?.Invoke(this, matchesCount);
-                }
-            }
-
-            if (matches.Count > 0)
-            {
-                var result = new SearchResult(parameters, filePath, matches, encoding);
-                FileCompleted?.Invoke(this, result);
+                // Intermediate result for large files
+                MatchFound?.Invoke(this, matchesCount);
             }
         }
-        catch (OperationCanceledException)
+
+        if (matches.Count > 0)
         {
-            throw;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Skip files that can't be read
-            Trace.WriteLine(ex.ToString());
+            var result = new SearchResult(parameters, filePath, matches, encoding);
+            FileCompleted?.Invoke(this, result);
         }
     }
 
@@ -319,7 +323,7 @@ public class FileSearchService : ISearchService
     }
 
 
-    private static IEnumerable<string> EnumerateFiles(string directory, List<Regex> filePatterns,
+    private IEnumerable<string> EnumerateFiles(string directory, List<Regex> filePatterns,
         bool includeSubdirectories,
         CancellationToken cancellationToken)
     {
@@ -340,7 +344,7 @@ public class FileSearchService : ISearchService
     ///     instead of letting one bad folder abort the entire scan.
     ///     Files are yielded per directory, so the search can start before the whole tree is enumerated.
     /// </summary>
-    private static IEnumerable<string> SafeEnumerateFiles(string path, bool includeSubdirectories,
+    private IEnumerable<string> SafeEnumerateFiles(string path, bool includeSubdirectories,
         CancellationToken cancellationToken)
     {
         var pending = new Stack<string>();
@@ -359,12 +363,10 @@ public class FileSearchService : ISearchService
                 files = Directory.GetFiles(current);
                 subDirs = Directory.GetDirectories(current);
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                continue;
-            }
-            catch (UnauthorizedAccessException)
-            {
+                Interlocked.Increment(ref _skippedDirectories);
+                Trace.WriteLine(ex.ToString());
                 continue;
             }
 

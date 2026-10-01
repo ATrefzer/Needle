@@ -14,6 +14,11 @@ public abstract class TempDirectoryTestBase
 {
     protected string Directory { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     The service of the last <see cref="SearchAsync" /> call, e.g. to check the skipped files.
+    /// </summary>
+    protected FileSearchService? LastSearchService { get; private set; }
+
     [SetUp]
     public void CreateDirectory()
     {
@@ -52,6 +57,7 @@ public abstract class TempDirectoryTestBase
         var results = new ConcurrentBag<SearchResult>();
         var service = new FileSearchService();
         service.FileCompleted += (_, result) => results.Add(result);
+        LastSearchService = service;
 
         await service.SearchAsync(parameters, CancellationToken.None);
         return results.ToList();

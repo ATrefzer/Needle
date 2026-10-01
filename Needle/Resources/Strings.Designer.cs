@@ -132,6 +132,24 @@ namespace Needle.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Replace in this file.
+        /// </summary>
+        public static string Tooltip_SelectFile {
+            get {
+                return ResourceManager.GetString("Tooltip_SelectFile", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Replace this match.
+        /// </summary>
+        public static string Tooltip_SelectMatch {
+            get {
+                return ResourceManager.GetString("Tooltip_SelectMatch", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Options:.
         /// </summary>
         public static string Label_Options {

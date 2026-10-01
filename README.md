@@ -21,7 +21,7 @@ A simple and fast text search and replace tool for Windows.
 | Case sensitive | Applies to plain text and regular expressions. |
 | Include subdirectories | Searches the whole directory tree. |
 
-All files matching the file mask are searched, including hidden, system and binary files. The `.git` directory is skipped.
+All files matching the file mask are searched, including hidden, system and binary files. The `.git` directory is skipped. Files and directories that cannot be read, like locked files, files without access or broken ZIP archives, are skipped and counted in the status bar.
 
 Click a file to expand its matches. The context menu opens a file in Explorer or a match in Notepad++.
 
@@ -47,7 +47,9 @@ Binary files are searched like text files. Set *Encoding* to ANSI to find ASCII 
 
 ## Replacing
 
-*Replace* replaces all matches in the current result with the text in *Replace with*. With *Regex*, the replacement can refer to capture groups, e.g. `$1`.
+*Replace* replaces the selected matches in the current result with the text in *Replace with*. With *Regex*, the replacement can refer to capture groups, e.g. `$1`.
+
+All matches are selected after a search. Use the check boxes to exclude single matches, or a whole file with the check box in its header.
 
 Replacing never guesses, it refuses files instead of risking to corrupt them. A file is not modified and an error is shown if
 
@@ -59,7 +61,7 @@ Only the matched text is modified. All other bytes stay unchanged, including the
 
 The file is written to a temporary file first, which replaces the original at the end. If anything fails, the original file is untouched. Large files are processed without loading them into memory.
 
-After replacing, the result list is not updated. Search again before replacing a second time.
+After replacing, the result list is cleared, because the found positions and file names are outdated.
 
 ### Renaming Files
 

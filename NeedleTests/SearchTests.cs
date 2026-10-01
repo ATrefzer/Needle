@@ -71,6 +71,46 @@ public class SearchTests : TempDirectoryTestBase
             Is.EquivalentTo(new[] { "match.txt", "archive.zip/inside.txt", "second.zip/again.txt" }));
     }
 
+    [Test]
+    public async Task Locked_file_is_skipped_and_counted()
+    {
+        CreateFile("locked.txt", "foo");
+        CreateFile("readable.txt", "foo");
+
+        List<Needle.Models.SearchResult> results;
+        using (new FileStream(PathOf("locked.txt"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            results = await SearchAsync("foo");
+        }
+
+        Assert.That(results.Select(r => Path.GetFileName(r.FilePath)), Is.EquivalentTo(new[] { "readable.txt" }));
+        Assert.That(LastSearchService!.SkippedFiles, Is.EqualTo(1));
+        Assert.That(LastSearchService.SkippedDirectories, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Broken_zip_is_skipped_and_counted()
+    {
+        CreateFile("broken.zip", "this is not a zip archive");
+        CreateZip("valid.zip", ("inside.txt", "foo"));
+
+        var results = await SearchAsync("foo", fileMasks: "*.txt;*.zip");
+
+        Assert.That(results.Select(r => r.FileName), Is.EquivalentTo(new[] { "valid.zip/inside.txt" }));
+        Assert.That(LastSearchService!.SkippedFiles, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Nothing_is_skipped_normally()
+    {
+        CreateFile("file.txt", "foo");
+
+        await SearchAsync("foo");
+
+        Assert.That(LastSearchService!.SkippedFiles, Is.EqualTo(0));
+        Assert.That(LastSearchService.SkippedDirectories, Is.EqualTo(0));
+    }
+
     private void CreateZip(string name, params (string Entry, string Content)[] entries)
     {
         using var archive = ZipFile.Open(PathOf(name), ZipArchiveMode.Create);

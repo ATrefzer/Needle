@@ -153,6 +153,12 @@ Please install Notepad++ or add it to your PATH environment variable.</value>
     <data name="SearchScope_Both" xml:space="preserve">
         <value>File content and name</value>
     </data>
+    <data name="Tooltip_SelectFile" xml:space="preserve">
+        <value>Replace in this file</value>
+    </data>
+    <data name="Tooltip_SelectMatch" xml:space="preserve">
+        <value>Replace this match</value>
+    </data>
     <data name="Label_Options" xml:space="preserve">
         <value>Options:</value>
     </data>

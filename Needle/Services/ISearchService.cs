@@ -10,6 +10,9 @@ public interface ISearchService
 
     event EventHandler<SearchResult> FileCompleted;
     event EventHandler<ulong> MatchFound;
+
+    int SkippedFiles { get; }
+    int SkippedDirectories { get; }
 }
 
 [Flags]
