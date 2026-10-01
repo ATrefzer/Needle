@@ -18,15 +18,15 @@ public class SearchResult : INotifyPropertyChanged
         Matches = matches;
         Encoding = encoding;
         IsArchive = false;
-        ArchivePath = string.Empty;
+        ArchiveEntryName = string.Empty;
         SetOwner(matches);
     }
 
-    public SearchResult(SearchParameters parameters, string filePath, string archivePath, IReadOnlyList<MatchLine> matches)
+    public SearchResult(SearchParameters parameters, string filePath, string archiveEntryName, IReadOnlyList<MatchLine> matches)
     {
         Parameters = parameters;
         FilePath = filePath;
-        ArchivePath = archivePath;
+        ArchiveEntryName = archiveEntryName;
         Matches = matches;
         Encoding = Encoding.Default;
         IsArchive = true;
@@ -71,8 +71,15 @@ public class SearchResult : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    ///     The file, or the zip file if the match is in an archive.
+    /// </summary>
     public string FilePath { get; }
-    public string ArchivePath { get; }
+
+    /// <summary>
+    ///     The path of the file inside the zip file. Empty if not in an archive.
+    /// </summary>
+    public string ArchiveEntryName { get; }
     public IReadOnlyList<MatchLine> Matches { get; }
     public Encoding Encoding { get; }
     
@@ -81,8 +88,8 @@ public class SearchResult : INotifyPropertyChanged
     /// </summary>
     public bool IsArchive { get; }
     public bool CanReplace => !IsArchive;
-    public ulong MatchCount => (ulong)Matches.Count;
-    public string FileName => IsArchive ? Path.GetFileName(FilePath) + "/" + ArchivePath : Path.GetFileName(FilePath) ;
+    public int MatchCount => Matches.Count;
+    public string FileName => IsArchive ? Path.GetFileName(FilePath) + "/" + ArchiveEntryName : Path.GetFileName(FilePath);
 
     /// <summary>
     ///     Used search parameters for this search result.

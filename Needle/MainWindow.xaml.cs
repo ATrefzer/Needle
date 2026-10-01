@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -17,7 +16,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += (sender, e) => InitFocusControl.Focus();
-        DataContext = new MainViewModel();
+        var viewModel = new MainViewModel();
+        DataContext = viewModel;
+
+        // Settings are not saved on every change, but on search and here.
+        Closing += (_, _) => viewModel.SaveSettings();
     }
 
     void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -71,25 +74,59 @@ public partial class MainWindow : Window
                 return;
             }
 
+            var notepadPlusPlus = FindNotepadPlusPlus();
+            if (notepadPlusPlus == null)
+            {
+                MessageBox.Show(Strings.Msg_NotepadPlusPlusNotFound, Strings.Title_NotepadPlusPlusNotFound,
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             var startInfo = new ProcessStartInfo
             {
-                FileName = "C:\\Program Files\\Notepad++\\notepad++.exe",
+                FileName = notepadPlusPlus,
                 Arguments = $"-n{lineNumber} \"{filePath}\"",
                 UseShellExecute = false
             };
 
             Process.Start(startInfo);
         }
-        catch (Win32Exception)
-        {
-            MessageBox.Show(Strings.Msg_NotepadPlusPlusNotFound, Strings.Title_NotepadPlusPlusNotFound,
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
         catch (Exception ex)
         {
             MessageBox.Show(string.Format(Strings.Msg_OpenNotepadPlusPlusError, ex.Message),
                 Strings.Title_Error, MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>
+    ///     Returns null if Notepad++ is not installed.
+    /// </summary>
+    static string? FindNotepadPlusPlus()
+    {
+        const string exe = "notepad++.exe";
+
+        // Registered by the installer
+        foreach (var root in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        {
+            using var key = root.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}");
+            if (key?.GetValue(null) is string registered && File.Exists(registered))
+            {
+                return registered;
+            }
+        }
+
+        var folders = new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+            }
+            .Select(folder => Path.Combine(folder, "Notepad++"))
+            .Concat((Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator));
+
+        return folders
+            .Where(folder => !string.IsNullOrWhiteSpace(folder))
+            .Select(folder => Path.Combine(folder.Trim(), exe))
+            .FirstOrDefault(File.Exists);
     }
 
     void OpenFileInExplorer(string filePath)

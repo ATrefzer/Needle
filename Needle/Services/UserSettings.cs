@@ -1,11 +1,12 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Needle.Services;
 
 public class UserSettings
 {
-    private static readonly string SettingsFilePath = Path.Combine(
+    private static readonly string DefaultFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Needle",
         "settings.json"
@@ -21,29 +22,46 @@ public class UserSettings
     public int EncodingWithoutBomCodePage { get; set; } = 65001; // UTF-8
     public List<string> FileMasksHistory { get; set; } = new();
 
+    /// <summary>
+    ///     The file the settings are saved to. Null for settings that were not loaded from a file,
+    ///     then <see cref="Save" /> does nothing.
+    /// </summary>
+    [JsonIgnore]
+    public string? FilePath { get; private set; }
+
+    /// <summary>
+    ///     Loads the settings of the current user. Returns default settings if there are none.
+    /// </summary>
     public static UserSettings Load()
     {
+        var settings = new UserSettings();
         try
         {
-            if (File.Exists(SettingsFilePath))
+            if (File.Exists(DefaultFilePath))
             {
-                var json = File.ReadAllText(SettingsFilePath);
-                return JsonSerializer.Deserialize<UserSettings>(json) ?? new UserSettings();
+                var json = File.ReadAllText(DefaultFilePath);
+                settings = JsonSerializer.Deserialize<UserSettings>(json) ?? settings;
             }
         }
         catch
         {
-            // If loading fails, return default settings
+            // If loading fails, use default settings
         }
 
-        return new UserSettings();
+        settings.FilePath = DefaultFilePath;
+        return settings;
     }
 
     public void Save()
     {
+        if (FilePath == null)
+        {
+            return;
+        }
+
         try
         {
-            var directory = Path.GetDirectoryName(SettingsFilePath);
+            var directory = Path.GetDirectoryName(FilePath);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
@@ -53,7 +71,7 @@ public class UserSettings
             {
                 WriteIndented = true
             });
-            File.WriteAllText(SettingsFilePath, json);
+            File.WriteAllText(FilePath, json);
         }
         catch
         {

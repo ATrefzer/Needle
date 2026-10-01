@@ -122,9 +122,9 @@ Output: Email: john at domain example.com</value>
         <value>Notepad++ Not Found</value>
     </data>
     <data name="Msg_NotepadPlusPlusNotFound" xml:space="preserve">
-        <value>Notepad++ is not installed or not found in the system PATH.
+        <value>Notepad++ is not installed.
 
-Please install Notepad++ or add it to your PATH environment variable.</value>
+Needle looks for notepad++.exe in the registered applications, in the program files folders and in the PATH environment variable.</value>
     </data>
     <data name="Msg_OpenNotepadPlusPlusError" xml:space="preserve">
         <value>Error opening file in Notepad++:
@@ -152,6 +152,76 @@ Please install Notepad++ or add it to your PATH environment variable.</value>
     </data>
     <data name="SearchScope_Both" xml:space="preserve">
         <value>File content and name</value>
+    </data>
+    <data name="Status_Ready" xml:space="preserve">
+        <value>Ready</value>
+    </data>
+    <data name="Status_Searching" xml:space="preserve">
+        <value>Searching...</value>
+    </data>
+    <data name="Progress_Found" xml:space="preserve">
+        <value>Found {0} matches ({1} files completed)</value>
+    </data>
+    <data name="Progress_UpdatingUi" xml:space="preserve">
+        <value>Updating UI</value>
+    </data>
+    <data name="Status_Finished" xml:space="preserve">
+        <value>Finished</value>
+    </data>
+    <data name="Status_Canceled" xml:space="preserve">
+        <value>Canceled</value>
+    </data>
+    <data name="Status_InvalidRegex" xml:space="preserve">
+        <value>Invalid regex: {0}</value>
+    </data>
+    <data name="Status_Error" xml:space="preserve">
+        <value>Error: {0}</value>
+    </data>
+    <data name="Status_Skipped" xml:space="preserve">
+        <value> - skipped {0} files and {1} directories (no access or not readable)</value>
+    </data>
+    <data name="Status_NothingSelected" xml:space="preserve">
+        <value>Nothing selected to replace</value>
+    </data>
+    <data name="Status_Replacing" xml:space="preserve">
+        <value>Replacing...</value>
+    </data>
+    <data name="Status_Replaced" xml:space="preserve">
+        <value>Replaced {0} occurrences in {1} files</value>
+    </data>
+    <data name="Status_ReplacedWithErrors" xml:space="preserve">
+        <value>Replacement completed with errors. {0} files modified, {1} errors</value>
+    </data>
+    <data name="Status_ReplaceCanceled" xml:space="preserve">
+        <value>Replacement canceled</value>
+    </data>
+    <data name="Title_Replace" xml:space="preserve">
+        <value>Replace</value>
+    </data>
+    <data name="Msg_ConfirmReplace" xml:space="preserve">
+        <value>Do you want to replace in {0} files?</value>
+    </data>
+    <data name="Msg_ConfirmReplaceAndRename" xml:space="preserve">
+        <value>Do you want to replace in {0} files?
+{1} of them will be renamed.</value>
+    </data>
+    <data name="Title_ReplaceErrors" xml:space="preserve">
+        <value>Replacement Errors</value>
+    </data>
+    <data name="Msg_ReplaceErrors" xml:space="preserve">
+        <value>Errors occurred during replacement:
+
+{0}</value>
+    </data>
+    <data name="Msg_ReplaceError" xml:space="preserve">
+        <value>Error during replacement:
+{0}</value>
+    </data>
+    <data name="Label_Cancel" xml:space="preserve">
+        <value>Cancel</value>
+    </data>
+    <data name="Tooltip_SelectFolder" xml:space="preserve">
+        <value>Select folder</value>
     </data>
     <data name="Tooltip_SelectFile" xml:space="preserve">
         <value>Replace in this file</value>

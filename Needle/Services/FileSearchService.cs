@@ -25,6 +25,9 @@ public class FileSearchService : ISearchService
             throw new ArgumentException("Search pattern must not be empty.");
         }
 
+        // Throws RegexParseException before the search starts, if the regex is invalid.
+        _ = parameters.Regex;
+
         return Task.Run(() => SearchInternalAsync(parameters, cancellationToken), cancellationToken);
     }
 
@@ -32,16 +35,8 @@ public class FileSearchService : ISearchService
     private int _skippedFiles;
 
     public event EventHandler<SearchResult>? FileCompleted;
-    public event EventHandler<ulong>? MatchFound;
-
-    /// <summary>
-    ///     Files that could not be read, like locked files, files without access or broken zip archives.
-    /// </summary>
+    public event EventHandler<int>? MatchFound;
     public int SkippedFiles => _skippedFiles;
-
-    /// <summary>
-    ///     Directories that could not be enumerated, like directories without access.
-    /// </summary>
     public int SkippedDirectories => _skippedDirectories;
 
     private async Task SearchInternalAsync(SearchParameters parameters, CancellationToken cancellationToken)
@@ -391,7 +386,7 @@ public class FileSearchService : ISearchService
         }
     }
 
-    private static ulong SearchInLine(string filePath, string line, SearchParameters parameters, int lineNumber,
+    private static int SearchInLine(string filePath, string line, SearchParameters parameters, int lineNumber,
         List<MatchLine> matches)
     {
         if (parameters.Regex != null)
@@ -402,7 +397,7 @@ public class FileSearchService : ISearchService
         return SearchInLineText(filePath, line, parameters, lineNumber, matches);
     }
 
-    private static ulong SearchInLineText(string filePath, string line, SearchParameters parameters, int lineNumber,
+    private static int SearchInLineText(string filePath, string line, SearchParameters parameters, int lineNumber,
         List<MatchLine> matches)
     {
         var pattern = parameters.Pattern;
@@ -412,7 +407,7 @@ public class FileSearchService : ISearchService
             : StringComparison.OrdinalIgnoreCase;
         var index = 0;
 
-        ulong matchesCount = 0;
+        var matchesCount = 0;
         while ((index = line.IndexOf(pattern, index, comparison)) != -1)
         {
             matchesCount++;
@@ -431,13 +426,13 @@ public class FileSearchService : ISearchService
         return matchesCount;
     }
 
-    private static ulong SearchInLineRegex(string filePath, string line, Regex regex, int lineNumber,
+    private static int SearchInLineRegex(string filePath, string line, Regex regex, int lineNumber,
         List<MatchLine> matches)
     {
         // Regex: capture all matches with positions
         var regexMatches = regex.EnumerateMatches(line);
 
-        ulong matchesCount = 0;
+        var matchesCount = 0;
         foreach (var match in regexMatches)
         {
             matchesCount++;

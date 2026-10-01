@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows;
 using System.Windows.Threading;
 using Needle.Models;
 using Needle.Resources;
@@ -13,30 +12,43 @@ namespace Needle.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged
 {
+    private const int MaxFileMasksHistory = 10;
+
+    private readonly Func<ISearchService> _createSearchService;
+    private readonly IDialogService _dialogs;
+    private readonly object _progressLock = new();
+    private readonly IReplaceService _replaceService;
     private readonly UserSettings _settings;
     private CancellationTokenSource? _cts;
 
+    private int _encodingWithoutBomCodePage;
     private string _fileMasks;
     private bool _includeSubdirectories;
     private bool _isBusy;
     private bool _isCaseSensitive;
     private bool _isRegex;
-    private SearchScope _searchScope;
-    private int _encodingWithoutBomCodePage;
-
-    private object _obj = new();
     private string _pattern;
-
     private string _progressMessage = string.Empty;
     private string _replacementText = string.Empty;
-    private ObservableCollection<SearchResult> _result = [];
+    private ObservableCollection<SearchResult> _results = [];
+    private SearchScope _searchScope;
     private string _startDirectory;
-    private string _statusMessage = "Ready";
-
+    private string _statusMessage = Strings.Status_Ready;
 
     public MainViewModel()
+        : this(UserSettings.Load(), () => new FileSearchService(), new FileReplaceService(),
+            new MessageBoxDialogService())
     {
-        _settings = UserSettings.Load();
+    }
+
+    /// <param name="createSearchService">A search service is used for one search only.</param>
+    public MainViewModel(UserSettings settings, Func<ISearchService> createSearchService,
+        IReplaceService replaceService, IDialogService dialogs)
+    {
+        _settings = settings;
+        _createSearchService = createSearchService;
+        _replaceService = replaceService;
+        _dialogs = dialogs;
 
         StartSearchCommand = new RelayCommand(_ => StartSearch(), _ => !IsBusy);
         CancelSearchCommand = new RelayCommand(_ => CancelSearch(), _ => IsBusy);
@@ -56,21 +68,20 @@ public class MainViewModel : INotifyPropertyChanged
             ? _settings.EncodingWithoutBomCodePage
             : Encoding.UTF8.CodePage;
 
-        // Load file masks history
         FileMasksHistory = new ObservableCollection<string>(_settings.FileMasksHistory);
     }
 
-
     public ObservableCollection<SearchResult> Results
     {
-        get => _result;
+        get => _results;
         set
         {
-            _result = value;
+            _results = value;
             OnPropertyChanged();
+            ReplaceCommand.RaiseCanExecuteChanged();
         }
     }
-    
+
     public ObservableCollection<string> FileMasksHistory { get; }
 
     public string StartDirectory
@@ -80,7 +91,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _startDirectory = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
@@ -91,7 +101,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _fileMasks = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
@@ -102,7 +111,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _pattern = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
@@ -113,7 +121,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _isRegex = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
@@ -124,7 +131,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _isCaseSensitive = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
@@ -135,7 +141,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _includeSubdirectories = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
@@ -153,7 +158,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _searchScope = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
@@ -170,14 +174,13 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _encodingWithoutBomCodePage = value;
             OnPropertyChanged();
-            SaveSettings();
         }
     }
 
     public bool IsBusy
     {
         get => _isBusy;
-        set
+        private set
         {
             if (value == _isBusy)
             {
@@ -202,7 +205,6 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-
 
     public string StatusMessage
     {
@@ -230,18 +232,10 @@ public class MainViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private Regex CreateRegex()
-    {
-        var options = RegexOptions.Compiled | RegexOptions.Multiline;
-        if (!IsCaseSensitive)
-        {
-            options |= RegexOptions.IgnoreCase;
-        }
-
-        return new Regex(Pattern, options, TimeSpan.FromSeconds(1));
-    }
-
-    private void SaveSettings()
+    /// <summary>
+    ///     Called when starting a search and when the window is closed.
+    /// </summary>
+    public void SaveSettings()
     {
         _settings.StartDirectory = StartDirectory;
         _settings.FileMasks = FileMasks;
@@ -254,25 +248,19 @@ public class MainViewModel : INotifyPropertyChanged
         _settings.FileMasksHistory = FileMasksHistory.ToList();
         _settings.Save();
     }
-    
+
     private void AddFileMaskToHistory(string fileMask)
     {
         if (string.IsNullOrWhiteSpace(fileMask))
         {
             return;
         }
-        
+
         // Remove if already exists to move it to the top
-        if (FileMasksHistory.Contains(fileMask))
-        {
-            FileMasksHistory.Remove(fileMask);
-        }
-        
-        // Add to the beginning
+        FileMasksHistory.Remove(fileMask);
         FileMasksHistory.Insert(0, fileMask);
 
-        // Keep only last 10 items
-        while (FileMasksHistory.Count > 10)
+        while (FileMasksHistory.Count > MaxFileMasksHistory)
         {
             FileMasksHistory.RemoveAt(FileMasksHistory.Count - 1);
         }
@@ -280,57 +268,63 @@ public class MainViewModel : INotifyPropertyChanged
         // Restore FileMasks because modifying the ObservableCollection
         // causes the editable ComboBox to reset its Text binding.
         FileMasks = fileMask;
-
-        SaveSettings();
     }
 
     private async void StartSearch()
     {
-        // Add current file mask to history before starting search
+        await SearchAsync();
+    }
+
+    /// <summary>
+    ///     Does not throw. Errors are shown in the status message.
+    /// </summary>
+    public async Task SearchAsync()
+    {
         AddFileMaskToHistory(FileMasks);
-        
+        SaveSettings();
+
         IsBusy = true;
-        ProgressMessage = "Searching...";
-        StatusMessage = "Searching...";
-        Results.Clear();
+        ProgressMessage = Strings.Status_Searching;
+        StatusMessage = Strings.Status_Searching;
+        Results = [];
 
         List<SearchResult> searchResultsQueue = new(1000);
-        var searchService = new FileSearchService();
+        var searchService = _createSearchService();
 
         var timer = new DispatcherTimer
         {
             // If we have some hits but the large file gets not finished, update the progress.
             Interval = TimeSpan.FromSeconds(2)
         };
-        timer.Stop();
 
-
-        ulong finalHits = 0;
-        ulong intermediateHits = 0;
+        long finalHits = 0;
+        long intermediateHits = 0;
 
         timer.Tick += (_, _) =>
         {
-            lock (_obj)
+            lock (_progressLock)
             {
                 timer.Stop();
-                ProgressMessage = $"Found  {finalHits + intermediateHits} matches ({searchResultsQueue.Count} files completed)";
+                ProgressMessage = string.Format(Strings.Progress_Found, finalHits + intermediateHits,
+                    searchResultsQueue.Count);
             }
         };
 
         searchService.FileCompleted += (_, result) =>
         {
-            lock (_obj)
+            lock (_progressLock)
             {
                 timer.Stop();
                 searchResultsQueue.Add(result);
                 finalHits += result.MatchCount;
                 intermediateHits -= result.MatchCount;
-                ProgressMessage = $"Found  {finalHits + intermediateHits} matches ({searchResultsQueue.Count} files completed)";
+                ProgressMessage = string.Format(Strings.Progress_Found, finalHits + intermediateHits,
+                    searchResultsQueue.Count);
             }
         };
         searchService.MatchFound += (_, matchCount) =>
         {
-            lock (_obj)
+            lock (_progressLock)
             {
                 intermediateHits += matchCount;
                 timer.Start();
@@ -344,14 +338,13 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            // Inside the try block: An invalid regex throws, and this is an async void method.
             var parameters = new SearchParameters
             {
                 Scope = SearchScope,
                 StartDirectory = StartDirectory,
                 FileMasks = FileMasks,
                 Pattern = Pattern,
-                Regex = IsRegex ? CreateRegex() : null,
+                IsRegex = IsRegex,
                 IsCaseSensitive = IsCaseSensitive,
                 IncludeSubdirectories = IncludeSubdirectories,
                 EncodingWithoutBom = EncodingWithoutBomCodePage == Encoding.UTF8.CodePage
@@ -360,55 +353,38 @@ public class MainViewModel : INotifyPropertyChanged
             };
 
             await searchService.SearchAsync(parameters, _cts.Token).ConfigureAwait(true);
-            StatusMessage = "Finished";
+            StatusMessage = Strings.Status_Finished;
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "Canceled";
+            StatusMessage = Strings.Status_Canceled;
         }
         catch (RegexParseException ex)
         {
-            StatusMessage = $"Invalid regex: {ex.Message}";
+            StatusMessage = string.Format(Strings.Status_InvalidRegex, ex.Message);
         }
-
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
+            StatusMessage = string.Format(Strings.Status_Error, ex.Message);
         }
 
-        StatusMessage += FormatSkipped(searchService);
+        timer.Stop();
+
+        // Otherwise, the user does not notice that files are missing in the result.
+        if (searchService.SkippedFiles > 0 || searchService.SkippedDirectories > 0)
+        {
+            StatusMessage += string.Format(Strings.Status_Skipped, searchService.SkippedFiles,
+                searchService.SkippedDirectories);
+        }
 
         // Regardless if we canceled or completed, update available results
-
-        ProgressMessage = "Updating Ui";
+        ProgressMessage = Strings.Progress_UpdatingUi;
 
         // WPF renders within frames around every 16ms!
         await Task.Delay(60);
 
         Results = new ObservableCollection<SearchResult>(searchResultsQueue);
-
-        ProgressMessage = "Results loaded";
         IsBusy = false;
-    }
-
-
-    /// <summary>
-    ///     Otherwise, the user does not notice that files are missing in the result.
-    /// </summary>
-    private static string FormatSkipped(ISearchService searchService)
-    {
-        var skipped = new List<string>();
-        if (searchService.SkippedFiles > 0)
-        {
-            skipped.Add($"{searchService.SkippedFiles} files");
-        }
-
-        if (searchService.SkippedDirectories > 0)
-        {
-            skipped.Add($"{searchService.SkippedDirectories} directories");
-        }
-
-        return skipped.Count > 0 ? $" - skipped {string.Join(" and ", skipped)} (no access or not readable)" : "";
     }
 
     private void CancelSearch()
@@ -418,71 +394,66 @@ public class MainViewModel : INotifyPropertyChanged
 
     private async void StartReplace()
     {
+        await ReplaceAsync();
+    }
+
+    /// <summary>
+    ///     Does not throw. Errors are shown in a message box and in the status message.
+    /// </summary>
+    public async Task ReplaceAsync()
+    {
         // Matches in archives cannot be replaced.
-        var selected = Results.Where(r => !r.IsArchive && r.Matches.Any(m => m.IsSelected)).ToList();
+        var selected = Results.Where(r => r.CanReplace && r.Matches.Any(m => m.IsSelected)).ToList();
         if (selected.Count == 0)
         {
-            StatusMessage = "Nothing selected to replace";
+            StatusMessage = Strings.Status_NothingSelected;
             return;
         }
 
-        var owner = Application.Current.MainWindow;
         var renameCount = selected.Count(r => r.Matches.Any(m => m.IsFileName && m.IsSelected));
         var question = renameCount > 0
-            ? $"Do you want to replace in {selected.Count} files?\n{renameCount} of them will be renamed."
-            : $"Do you want to replace in {selected.Count} files?";
-        var user = MessageBox.Show(owner!, question, "Replace",  MessageBoxButton.YesNo,  MessageBoxImage.Question);
-        if (user == MessageBoxResult.No)
+            ? string.Format(Strings.Msg_ConfirmReplaceAndRename, selected.Count, renameCount)
+            : string.Format(Strings.Msg_ConfirmReplace, selected.Count);
+        if (!_dialogs.Confirm(question, Strings.Title_Replace))
         {
             return;
         }
-        
+
         IsBusy = true;
-        StatusMessage = "Replacing...";
+        StatusMessage = Strings.Status_Replacing;
 
         // Give UI thread time to render overlay
         await Task.Delay(1);
 
         _cts = new CancellationTokenSource();
 
-
-        var replaceService = new FileReplaceService();
         try
         {
-            var result = await replaceService.ReplaceInFilesAsync(
-                selected, ReplacementText,
-                _cts.Token);
+            var result = await _replaceService.ReplaceInFilesAsync(selected, ReplacementText, _cts.Token);
 
             if (result.Success)
             {
-                StatusMessage = $"Replaced {result.TotalReplacements} occurrences in {result.FilesModified} files";
+                StatusMessage = string.Format(Strings.Status_Replaced, result.TotalReplacements, result.FilesModified);
             }
             else
             {
-                StatusMessage =
-                    $"Replacement completed with errors. {result.FilesModified} files modified, {result.Errors.Count} errors";
-                if (result.Errors.Count > 0)
-                {
-                    // Show first few errors
-                    var errorSummary = string.Join("\n", result.Errors.Take(3));
-                    MessageBox.Show($"Errors occurred during replacement:\n\n{errorSummary}",
-                        "Replacement Errors",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
+                StatusMessage = string.Format(Strings.Status_ReplacedWithErrors, result.FilesModified,
+                    result.Errors.Count);
+
+                // Show first few errors
+                var errorSummary = string.Join("\n", result.Errors.Take(3));
+                _dialogs.ShowWarning(string.Format(Strings.Msg_ReplaceErrors, errorSummary),
+                    Strings.Title_ReplaceErrors);
             }
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "Replacement canceled";
+            StatusMessage = Strings.Status_ReplaceCanceled;
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
-            MessageBox.Show($"Error during replacement:\n{ex.Message}",
-                "Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            StatusMessage = string.Format(Strings.Status_Error, ex.Message);
+            _dialogs.ShowError(string.Format(Strings.Msg_ReplaceError, ex.Message), Strings.Title_Error);
         }
         finally
         {

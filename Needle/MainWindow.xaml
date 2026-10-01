@@ -6,9 +6,23 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d"
         Icon="/needle.png"
         Title="{x:Static resources:Strings.Title_Needle}" Height="700" Width="1100" MinWidth="800" MinHeight="500"
-        Background="#f3f3f3"
+        Background="{DynamicResource WindowBrush}"
         FontFamily="Segoe UI" FontSize="13">
     <Window.Resources>
+        <!-- Colors -->
+        <SolidColorBrush x:Key="WindowBrush" Color="#f3f3f3" />
+        <SolidColorBrush x:Key="PanelBrush" Color="#ffffff" />
+        <SolidColorBrush x:Key="PanelBorderBrush" Color="#d0d0d0" />
+        <SolidColorBrush x:Key="TextBrush" Color="#222222" />
+        <SolidColorBrush x:Key="TextLightBrush" Color="#333333" />
+        <SolidColorBrush x:Key="LabelBrush" Color="#444444" />
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="#666666" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#0078d4" />
+        <SolidColorBrush x:Key="MatchesBrush" Color="#fafafa" />
+        <SolidColorBrush x:Key="LineNumberBrush" Color="#e5e5e5" />
+        <SolidColorBrush x:Key="FileNameMatchBrush" Color="#cce4f7" />
+        <SolidColorBrush x:Key="OverlayBrush" Color="#80000000" />
+
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
         <Style TargetType="ListViewItem">
@@ -28,8 +42,8 @@
         <DataTemplate x:Key="SearchResultTemplate" DataType="models:SearchResult">
             <StackPanel Margin="0,0,0,4">
                 <!-- Header Section -->
-                <Border Background="#ffffff" Padding="6" MouseLeftButtonDown="Header_MouseLeftButtonDown"
-                        BorderBrush="#d0d0d0" BorderThickness="1" HorizontalAlignment="Stretch" Cursor="Hand"
+                <Border Background="{StaticResource PanelBrush}" Padding="6" MouseLeftButtonDown="Header_MouseLeftButtonDown"
+                        BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" HorizontalAlignment="Stretch" Cursor="Hand"
                         Tag="{Binding FilePath}">
                     <Border.ContextMenu>
                         <ContextMenu DataContext="{Binding Tag, Path=PlacementTarget}">
@@ -60,7 +74,7 @@
                                   IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanReplace}"
                                   ToolTip="{x:Static resources:Strings.Tooltip_SelectFile}" />
                         <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0"
-                                   FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="#666">
+                                   FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="&#xE70D;" />
@@ -72,23 +86,23 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <Border Grid.Column="2" Background="#0078d4" CornerRadius="4" Padding="6,2" Margin="0,0,8,0"
+                        <Border Grid.Column="2" Background="{StaticResource AccentBrush}" CornerRadius="4" Padding="6,2" Margin="0,0,8,0"
                                 VerticalAlignment="Center">
                             <TextBlock Text="{Binding MatchCount}" Foreground="White" FontWeight="Bold" />
                         </Border>
                         <DockPanel Grid.Column="3" LastChildFill="True" VerticalAlignment="Center" Margin="0"
                                    HorizontalAlignment="Stretch">
-                            <TextBlock Text="{Binding FileName}" FontWeight="Bold" Foreground="#222"
+                            <TextBlock Text="{Binding FileName}" FontWeight="Bold" Foreground="{StaticResource TextBrush}"
                                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" DockPanel.Dock="Left" />
-                            <TextBlock Text="  -  " Foreground="#666" DockPanel.Dock="Left" />
-                            <TextBlock Text="{Binding FilePath}" FontSize="11" Foreground="#666" TextWrapping="NoWrap"
+                            <TextBlock Text="  -  " Foreground="{StaticResource SecondaryTextBrush}" DockPanel.Dock="Left" />
+                            <TextBlock Text="{Binding FilePath}" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="NoWrap"
                                        TextTrimming="CharacterEllipsis" />
                         </DockPanel>
                     </Grid>
                 </Border>
 
                 <!-- Content Section - Only visible when expanded -->
-                <Border BorderBrush="#d0d0d0" BorderThickness="1,0,1,1" Padding="6" Background="#fafafa"
+                <Border BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1,0,1,1" Padding="6" Background="{StaticResource MatchesBrush}"
                         CornerRadius="0,0,4,4"
                         Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
                     <ItemsControl ItemsSource="{Binding Matches}">
@@ -112,19 +126,19 @@
                                             Margin="0,0,8,0" MinWidth="60">
                                         <Border.Style>
                                             <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#e5e5e5" />
+                                                <Setter Property="Background" Value="{StaticResource LineNumberBrush}" />
                                                 <Style.Triggers>
                                                     <!-- Match in file name instead of file content -->
                                                     <DataTrigger Binding="{Binding IsFileName}" Value="True">
-                                                        <Setter Property="Background" Value="#cce4f7" />
+                                                        <Setter Property="Background" Value="{StaticResource FileNameMatchBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock Text="{Binding LineLabel}" Foreground="#333" FontFamily="Consolas"
+                                        <TextBlock Text="{Binding LineLabel}" Foreground="{StaticResource TextLightBrush}" FontFamily="Consolas"
                                                    TextAlignment="Right" />
                                     </Border>
-                                    <TextBlock Text="{Binding SafeText}" Foreground="#222" TextWrapping="Wrap"
+                                    <TextBlock Text="{Binding SafeText}" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
                                                FontFamily="Consolas" />
                                 </DockPanel>
                             </DataTemplate>
@@ -136,13 +150,13 @@
     </Window.Resources>
     <Grid>
         <DockPanel>
-            <StatusBar DockPanel.Dock="Bottom" Background="#ffffff" Foreground="#333" BorderBrush="#d0d0d0"
+            <StatusBar DockPanel.Dock="Bottom" Background="{StaticResource PanelBrush}" Foreground="{StaticResource TextLightBrush}" BorderBrush="{StaticResource PanelBorderBrush}"
                        BorderThickness="1,1,1,0">
                 <StatusBarItem>
                     <TextBlock Text="{Binding StatusMessage}" />
                 </StatusBarItem>
             </StatusBar>
-            <Border DockPanel.Dock="Top" Background="#ffffff" Padding="16" BorderBrush="#d0d0d0" BorderThickness="1"
+            <Border DockPanel.Dock="Top" Background="{StaticResource PanelBrush}" Padding="16" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
                     Margin="8" CornerRadius="6">
                 <!-- One grid for all rows, so the labels, fields and buttons are aligned. -->
                 <Grid>
@@ -161,7 +175,7 @@
                             <Setter Property="Height" Value="30" />
                         </Style>
                         <Style x:Key="FieldLabel" TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="#444" />
+                            <Setter Property="Foreground" Value="{StaticResource LabelBrush}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                             <Setter Property="VerticalAlignment" Value="Center" />
                             <Setter Property="Margin" Value="0,0,12,8" />
@@ -201,7 +215,7 @@
                         <TextBox Grid.Column="0"
                                  Text="{Binding StartDirectory, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Grid.Column="1" Content="..." Width="30" Margin="4,0,16,0"
-                                Click="BrowseFolder_Click" ToolTip="Select folder" />
+                                Click="BrowseFolder_Click" ToolTip="{x:Static resources:Strings.Tooltip_SelectFolder}" />
                         <TextBlock Grid.Column="2" Style="{StaticResource OptionLabel}"
                                    Text="{x:Static resources:Strings.Label_Filemask}" />
                         <ComboBox Grid.Column="3" Padding="6,2" IsEditable="True"
@@ -259,7 +273,7 @@
                     </WrapPanel>
                 </Grid>
             </Border>
-            <Border Margin="8" Background="#ffffff" BorderBrush="#d0d0d0" BorderThickness="1" CornerRadius="6"
+            <Border Margin="8" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6"
                     Padding="8">
                 <ListView ItemsSource="{Binding Results}" ItemTemplate="{StaticResource SearchResultTemplate}"
                           BorderThickness="0" Background="Transparent" VirtualizingPanel.VirtualizationMode="Recycling"
@@ -268,14 +282,14 @@
                           IsTabStop="False" Focusable="False" />
             </Border>
         </DockPanel>
-        <Grid Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" Background="#80000000"
+        <Grid Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" Background="{StaticResource OverlayBrush}"
               IsHitTestVisible="{Binding IsBusy}">
-            <Border Background="#ffffff" Padding="24" CornerRadius="8" Width="420" HorizontalAlignment="Center"
-                    VerticalAlignment="Center" BorderBrush="#d0d0d0" BorderThickness="1">
+            <Border Background="{StaticResource PanelBrush}" Padding="24" CornerRadius="8" Width="420" HorizontalAlignment="Center"
+                    VerticalAlignment="Center" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1">
                 <StackPanel>
-                    <TextBlock Text="{Binding ProgressMessage}" FontSize="16" FontWeight="Bold" Foreground="#222" />
+                    <TextBlock Text="{Binding ProgressMessage}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextBrush}" />
                     <ProgressBar IsIndeterminate="True" Height="10" Margin="0,20,0,0" />
-                    <Button Content="Cancel" Command="{Binding CancelSearchCommand}" HorizontalAlignment="Right"
+                    <Button Content="{x:Static resources:Strings.Label_Cancel}" Command="{Binding CancelSearchCommand}" HorizontalAlignment="Right"
                             Margin="0,18,0,0" MinWidth="120" />
                 </StackPanel>
             </Border>

@@ -45,9 +45,7 @@ public abstract class TempDirectoryTestBase
             StartDirectory = Directory,
             FileMasks = fileMasks,
             Pattern = pattern,
-            Regex = isRegex
-                ? new Regex(pattern, isCaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase)
-                : null,
+            IsRegex = isRegex,
             IsCaseSensitive = isCaseSensitive,
             IncludeSubdirectories = includeSubdirectories,
             EncodingWithoutBom = encodingWithoutBom ?? new UTF8Encoding(false)
