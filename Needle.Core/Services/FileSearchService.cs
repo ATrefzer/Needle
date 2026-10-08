@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.IO.Enumeration;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
@@ -335,6 +336,30 @@ public class FileSearchService : ISearchService
     }
 
     /// <summary>
+    ///     Hidden and system files are searched, too. Inaccessible directories throw, so they can be counted.
+    /// </summary>
+    private static readonly EnumerationOptions AllEntries = new()
+    {
+        AttributesToSkip = 0,
+        IgnoreInaccessible = false
+    };
+
+    private static bool IsSkippedDirectory(string path, bool isReparsePoint)
+    {
+        // The git repository contains only internal data, but a lot of it.
+        var folderName = Path.GetFileName(path);
+        if (folderName.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
+            folderName.Equals(".vs", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Symbolic links and junctions are not followed, they can form endless loops.
+        // Other reparse points, like OneDrive folders, are normal directories.
+        return isReparsePoint && new DirectoryInfo(path).LinkTarget != null;
+    }
+
+    /// <summary>
     ///     Enumerates files recursively while tolerating inaccessible subdirectories,
     ///     instead of letting one bad folder abort the entire scan.
     ///     Files are yielded per directory, so the search can start before the whole tree is enumerated.
@@ -350,32 +375,34 @@ public class FileSearchService : ISearchService
             cancellationToken.ThrowIfCancellationRequested();
             var current = pending.Pop();
 
-            string[] subDirs;
-            string[] files;
+            var files = new List<string>();
 
             try
             {
-                files = Directory.GetFiles(current);
-                subDirs = Directory.GetDirectories(current);
+                // One pass for files and directories. The entry provides the attributes without extra calls.
+                var entries = new FileSystemEnumerable<(string Path, bool IsDirectory, bool IsReparsePoint)>(
+                    current,
+                    (ref entry) => (entry.ToFullPath(), entry.IsDirectory,
+                        entry.Attributes.HasFlag(FileAttributes.ReparsePoint)),
+                    AllEntries);
+
+                foreach (var entry in entries)
+                {
+                    if (!entry.IsDirectory)
+                    {
+                        files.Add(entry.Path);
+                    }
+                    else if (includeSubdirectories && !IsSkippedDirectory(entry.Path, entry.IsReparsePoint))
+                    {
+                        pending.Push(entry.Path);
+                    }
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 Interlocked.Increment(ref _skippedDirectories);
                 Trace.WriteLine(ex.ToString());
                 continue;
-            }
-
-            if (includeSubdirectories)
-            {
-                foreach (var dir in subDirs)
-                {
-                    // The git repository contains only internal data, but a lot of it.
-                    var folderName = Path.GetFileName(dir);
-                    if (!folderName.Equals(".git", StringComparison.OrdinalIgnoreCase))
-                    {
-                        pending.Push(dir);
-                    }
-                }
             }
 
             // Not possible inside the try block above.

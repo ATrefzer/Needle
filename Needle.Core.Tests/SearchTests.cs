@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 [TestFixture]
 public class SearchTests : TempDirectoryTestBase
@@ -44,6 +44,26 @@ public class SearchTests : TempDirectoryTestBase
     }
 
     [Test]
+    public async Task Linked_directories_are_not_followed()
+    {
+        CreateFile(Path.Combine("a", "file.txt"), "foo");
+        try
+        {
+            // A link to the parent directory would be an endless loop.
+            System.IO.Directory.CreateSymbolicLink(PathOf(Path.Combine("a", "loop")), Directory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Assert.Ignore("Creating symbolic links requires the developer mode on Windows.");
+        }
+
+        var results = await SearchAsync("foo", includeSubdirectories: true);
+
+        Assert.That(results.Select(r => r.FilePath), Is.EquivalentTo(new[] { PathOf(Path.Combine("a", "file.txt")) }));
+    }
+
+    [Test]
+    [Platform("Win", Reason = "Hidden and system are file attributes on Windows only.")]
     public async Task System_and_hidden_files_are_searched()
     {
         CreateFile("system.txt", "foo");

@@ -2,7 +2,7 @@ using System.Text;
 using Needle.Services;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 [TestFixture]
 public class EncodingTests : TempDirectoryTestBase

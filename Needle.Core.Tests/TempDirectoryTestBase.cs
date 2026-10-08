@@ -5,7 +5,7 @@ using Needle.Models;
 using Needle.Services;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 /// <summary>
 ///     Each test gets its own temporary directory that is deleted afterwards.

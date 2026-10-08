@@ -1,7 +1,7 @@
 using Needle.Models;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 /// <summary>
 ///     The displayed line is split into the text before the match, the match and the text after it.

@@ -1,7 +1,7 @@
 using Needle.Services;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 [TestFixture]
 public class FileNameTests : TempDirectoryTestBase

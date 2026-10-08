@@ -2,7 +2,7 @@ using System.Text;
 using Needle.Services;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 /// <summary>
 ///     Files without BOM are read with the selected encoding (UTF-8 or the system's ANSI code page).

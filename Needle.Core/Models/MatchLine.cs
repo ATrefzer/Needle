@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Needle.Resources;
 
 namespace Needle.Models;
 
@@ -16,8 +15,6 @@ public class MatchLine : INotifyPropertyChanged
     ///     The match is in the file name, not in the file content. Text holds the file name then.
     /// </summary>
     public bool IsFileName { get; set; }
-
-    public string LineLabel => IsFileName ? Strings.Label_FileNameMatch : LineNumber.ToString();
 
     public string Text { get; set; } = string.Empty;
     public int StartIndex { get; set; }

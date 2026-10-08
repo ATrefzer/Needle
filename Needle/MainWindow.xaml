@@ -1,7 +1,7 @@
 <Window x:Class="Needle.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:models="clr-namespace:Needle.Models"
+        xmlns:models="clr-namespace:Needle.Models;assembly=Needle.Core"
         xmlns:resources="clr-namespace:Needle.Resources" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d"
         Icon="/needle.png"
@@ -136,8 +136,19 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock Text="{Binding LineLabel}" Foreground="{StaticResource TextLightBrush}" FontFamily="Consolas"
-                                                   TextAlignment="Right" />
+                                        <TextBlock Foreground="{StaticResource TextLightBrush}" FontFamily="Consolas"
+                                                   TextAlignment="Right">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{Binding LineNumber}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsFileName}" Value="True">
+                                                            <Setter Property="Text" Value="{x:Static resources:Strings.Label_FileNameMatch}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </Border>
                                     <!-- The match is highlighted. A line with several matches is listed once per
                                          match, each row highlights its own match. -->

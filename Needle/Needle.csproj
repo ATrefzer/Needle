@@ -18,6 +18,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Needle.Core\Needle.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <None Update="needle.png">
             <Pack>True</Pack>
             <PackagePath>\</PackagePath>

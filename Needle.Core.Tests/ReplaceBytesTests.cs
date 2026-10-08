@@ -2,7 +2,7 @@ using System.Text;
 using Needle.Services;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 /// <summary>
 ///     Replacing modifies only the matched text. All other bytes, including line breaks, stay unchanged.
@@ -148,6 +148,7 @@ public class ReplaceBytesTests : TempDirectoryTestBase
     }
 
     [Test]
+    [Platform("Win", Reason = "Hidden and system are file attributes on Windows only.")]
     public async Task File_attributes_are_preserved()
     {
         CreateFile("file.txt", "foo");

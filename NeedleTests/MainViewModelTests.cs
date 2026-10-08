@@ -1,3 +1,4 @@
+using Needle.Core.Tests;
 using Needle.Resources;
 using Needle.Services;
 using Needle.ViewModels;

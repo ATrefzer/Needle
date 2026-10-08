@@ -1,7 +1,7 @@
 using Needle.Services;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 /// <summary>
 ///     Replacing uses the positions found by the search. If the file was modified in the meantime,

@@ -4,7 +4,7 @@ using Needle.Models;
 using Needle.Services;
 using NUnit.Framework;
 
-namespace NeedleTests;
+namespace Needle.Core.Tests;
 
 /// <summary>
 ///     Only selected matches are replaced. A file is selected if all its matches are selected.

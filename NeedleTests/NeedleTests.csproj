@@ -19,18 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Files\file-latin9.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Files\file-utf16-with-bom.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Files\file-utf8-with-bom.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Files\file-utf8-without-bom.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <!-- Shared with the core tests. -->
+    <Compile Include="..\Needle.Core.Tests\TempDirectoryTestBase.cs" Link="TempDirectoryTestBase.cs" />
   </ItemGroup>
 
 </Project>

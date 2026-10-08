@@ -14,7 +14,37 @@ permissions:
   contents: write
 
 jobs:
+  # The core and the command line tool on Linux. The WPF application cannot be built there.
+  cli-linux:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_VERSION: 1.0.${{ github.run_number }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test Core
+        run: dotnet test Needle.Core.Tests/Needle.Core.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Publish CLI
+        run: dotnet publish Needle.Cli/Needle.Cli.csproj -c Release -r linux-x64 -o publish-cli --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=none -p:Version=$BUILD_VERSION -p:FileVersion=$BUILD_VERSION -p:AssemblyVersion=$BUILD_VERSION
+
+      # tar keeps the executable flag.
+      - name: Pack CLI
+        run: tar -czf needle-cli-linux-x64.tar.gz -C publish-cli needle-cli
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: needle-cli-linux-x64
+          path: needle-cli-linux-x64.tar.gz
+
   build:
+    needs: cli-linux
     runs-on: windows-latest
     env:
       BUILD_VERSION: 1.0.${{ github.run_number }}
@@ -42,6 +72,16 @@ jobs:
       - name: Zip Release
         run: Compress-Archive -Path publish/* -DestinationPath latest-release.zip
 
+      - name: Publish CLI
+        run: dotnet publish Needle.Cli/Needle.Cli.csproj -c Release -r win-x64 -o publish-cli -p:SelfContained=false -p:PublishSingleFile=true -p:DebugType=none -p:Version=$env:BUILD_VERSION -p:FileVersion=$env:BUILD_VERSION -p:AssemblyVersion=$env:BUILD_VERSION
+
+      - name: Zip CLI
+        run: Compress-Archive -Path publish-cli/* -DestinationPath needle-cli-win-x64.zip
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: needle-cli-linux-x64
+
       # Delete existing "latest"-Release & Tag
       - name: Delete existing "latest" release if present
         run: |
@@ -66,5 +106,7 @@ jobs:
           prerelease: false
           files: |
             latest-release.zip
+            needle-cli-win-x64.zip
+            needle-cli-linux-x64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
