@@ -96,9 +96,14 @@ needle-cli <pattern> [<path>] [options]
 | `-c`, `--count` | Writes the number of matches per file. |
 | `--sort` | Sorts the output by path. Without it, files are written in the order they are finished. |
 | `--no-color` | No highlighting. Highlighting is also off if the output is redirected or `NO_COLOR` is set. |
+| `-M`, `--max-columns` | Cuts lines longer than this, see below. Default: `0`, lines are not cut. |
 | `--stats` | Writes the number of matches and skipped files to the error output. |
 | `-o`, `--options` | Reads the options from a file, see below. |
 | `--save-options` | Writes the options to a file instead of searching. |
+
+With `--max-columns`, a long line is shown from shortly before its first match, with as many following matches as fit. Cut parts are marked with `...`, matches that do not fit are counted, e.g. `[+3 matches]`. This keeps the output readable for files without line breaks, like minified JavaScript.
+
+Put file masks in quotes, e.g. `-m "*.cs;*.xaml"`. Otherwise the shell expands `*.cs` to the matching file names before needle-cli sees them, and `;` separates commands in bash and PowerShell. The masks are matched by needle-cli itself, the same way on Windows and Linux and ignoring the case: `*` matches all files, including files without extension and hidden files like `.bashrc`. `*.*` only matches names with a dot.
 
 The exit code is `0` if something was found, `1` if nothing was found and `2` on errors, like an invalid regular expression. Ctrl+C cancels the search.
 
@@ -116,7 +121,8 @@ Instead of typing many options, you can put them in a JSON file:
   "IsCaseSensitive": false,
   "IncludeSubdirectories": true,
   "SearchScope": "Content",
-  "Encoding": "utf8"
+  "Encoding": "utf8",
+  "MaxColumns": 200
 }
 ```
 
@@ -125,9 +131,18 @@ needle-cli -o search.json
 needle-cli -o search.json "other pattern"
 ```
 
-All keys are optional. Options on the command line override the file, the file overrides the defaults. A relative `StartDirectory` is relative to the options file, so the file can be kept in a repository. Without `StartDirectory`, the directory of the options file is searched. Unknown keys are an error, so a typo is not ignored silently.
+All keys are optional. The options are taken from these levels, each one overrides the previous ones:
 
-`--save-options search.json` creates such a file from the given command line options.
+1. The defaults.
+2. `needle-cli.json` next to the executable, if it exists. Use it for your personal defaults, like `FileMasks` or `MaxColumns`.
+3. The file given with `-o`.
+4. The command line.
+
+needle-cli comes with `needle-cli.template.json`, which contains all options with their default values and a short description. Copy it to `needle-cli.json` and keep only the options you want to change, or use it as a template for files given with `-o`. An update replaces only the template, not your `needle-cli.json`.
+
+A relative `StartDirectory` is relative to the file it is in, so a file can be kept in a repository. Without `StartDirectory` on any level, the current directory is searched. Unknown keys are an error, so a typo is not ignored silently.
+
+`--save-options search.json` writes the options of all levels to a file instead of searching. Only options that are set are written, the defaults are left out.
 
 ## Development
 

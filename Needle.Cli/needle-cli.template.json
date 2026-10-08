@@ -1,0 +1,37 @@
+// Template for the options of needle-cli. It contains all options with their default values.
+//
+// For your personal defaults, copy it to needle-cli.json next to the executable, change the options you want
+// and remove the others. An update of needle-cli replaces only this template, not your needle-cli.json.
+// It is also a template for option files given with -o.
+//
+// The options are taken from these levels, each one overrides the previous ones:
+//   1. The defaults.
+//   2. needle-cli.json next to the executable.
+//   3. The file given with -o.
+//   4. The command line.
+{
+  // Directory to search in, relative to this file. null: the current directory.
+  "StartDirectory": null,
+
+  // File masks separated by ';', ',' or '|', e.g. "*.cs;*.xaml".
+  "FileMasks": "*",
+
+  // Text or regular expression to search for. Usually given on the command line.
+  "Pattern": null,
+
+  // The pattern is a .NET regular expression.
+  "IsRegex": false,
+
+  "IsCaseSensitive": false,
+
+  "IncludeSubdirectories": true,
+
+  // Content, FileName or Both.
+  "SearchScope": "Content",
+
+  // Encoding of files without BOM: utf8, ansi, a code page number or name, e.g. 1252 or iso-8859-15.
+  "Encoding": "utf8",
+
+  // Lines longer than this are cut around the matches. 0: lines are not cut.
+  "MaxColumns": 0
+}

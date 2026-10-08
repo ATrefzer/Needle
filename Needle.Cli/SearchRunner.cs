@@ -21,6 +21,11 @@ internal sealed class OutputOptions
     public bool Sort { get; init; }
     public bool Color { get; init; } = true;
     public bool Stats { get; init; }
+
+    /// <summary>
+    ///     0 for whole lines.
+    /// </summary>
+    public int MaxColumns { get; init; }
 }
 
 internal sealed class SearchRunner(SearchParameters parameters, OutputOptions options)

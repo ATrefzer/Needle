@@ -1,7 +1,10 @@
 using System.CommandLine;
+using System.CommandLine.Help;
 using System.Text.Json;
 using Needle.Cli;
 using Needle.Services;
+
+const string DefaultOptionsFileName = "needle-cli.json";
 
 var patternArgument = new Argument<string?>("pattern")
 {
@@ -30,7 +33,8 @@ var encodingOption = new Option<string>("--encoding")
 };
 var optionsFileOption = new Option<FileInfo>("--options", "-o")
 {
-    Description = "JSON file with the search options. Command line options override it."
+    Description = $"JSON file with the options. Overrides {DefaultOptionsFileName} next to the executable, " +
+                  "command line options override it."
 };
 var saveOptionsOption = new Option<FileInfo>("--save-options")
 {
@@ -44,64 +48,61 @@ var countOption = new Option<bool>("--count", "-c") { Description = "Prints the 
 var sortOption = new Option<bool>("--sort") { Description = "Sorts the output by path. Prints nothing until the search is finished." };
 var noColorOption = new Option<bool>("--no-color") { Description = "Disables highlighting. Also disabled by NO_COLOR or redirected output." };
 var statsOption = new Option<bool>("--stats") { Description = "Prints a summary to the error output." };
+var maxColumnsOption = new Option<int>("--max-columns", "-M")
+{
+    Description = "Cuts lines longer than this around the matches. Default: 0, lines are not cut."
+};
 
 var rootCommand = new RootCommand("Needle - fast text search in files.")
 {
     patternArgument, pathArgument, maskOption, regexOption, caseSensitiveOption, noRecurseOption, scopeOption,
     encodingOption, optionsFileOption, saveOptionsOption, filesWithMatchesOption, countOption, sortOption,
-    noColorOption, statsOption
+    noColorOption, statsOption, maxColumnsOption
 };
 
 rootCommand.SetAction(async (parseResult, cancellationToken) =>
 {
     try
     {
-        // Defaults, overridden by the options file, overridden by the command line.
-        var optionsFile = parseResult.GetValue(optionsFileOption);
-        var options = optionsFile != null ? SearchOptions.Load(optionsFile.FullName) : new SearchOptions();
-
         // Options that are not given have an implicit result, too.
         bool IsSet(Option option) => parseResult.GetResult(option) is { Implicit: false };
+        T? Given<T>(Option<T> option) where T : struct => IsSet(option) ? parseResult.GetValue(option) : null;
+        string? GivenText(Option<string> option) => IsSet(option) ? parseResult.GetValue(option) : null;
 
-        if (parseResult.GetValue(patternArgument) is { } pattern)
+        var commandLine = new SearchOptions
         {
-            options.Pattern = pattern;
+            Pattern = parseResult.GetValue(patternArgument),
+
+            // Relative to the current directory, not to an options file.
+            StartDirectory = parseResult.GetValue(pathArgument) is { } path ? Path.GetFullPath(path) : null,
+            FileMasks = GivenText(maskOption),
+            IsRegex = Given(regexOption),
+            IsCaseSensitive = Given(caseSensitiveOption),
+            IncludeSubdirectories = IsSet(noRecurseOption) ? !parseResult.GetValue(noRecurseOption) : null,
+            SearchScope = Given(scopeOption),
+            Encoding = GivenText(encodingOption),
+            MaxColumns = Given(maxColumnsOption)
+        };
+
+        // Each level overrides the previous one: defaults, the file next to the executable,
+        // the file given with --options, the command line.
+        var options = new SearchOptions();
+        var defaultFile = Path.Combine(AppContext.BaseDirectory, DefaultOptionsFileName);
+        if (File.Exists(defaultFile))
+        {
+            options = options.Merge(LoadOptions(defaultFile));
         }
 
-        if (parseResult.GetValue(pathArgument) is { } path)
+        if (parseResult.GetValue(optionsFileOption) is { } optionsFile)
         {
-            // Relative to the current directory, not to the options file.
-            options.StartDirectory = Path.GetFullPath(path);
+            options = options.Merge(LoadOptions(optionsFile.FullName));
         }
 
-        if (IsSet(maskOption))
-        {
-            options.FileMasks = parseResult.GetValue(maskOption)!;
-        }
+        options = options.Merge(commandLine);
 
-        if (IsSet(regexOption))
+        if (options.MaxColumns < 0)
         {
-            options.IsRegex = parseResult.GetValue(regexOption);
-        }
-
-        if (IsSet(caseSensitiveOption))
-        {
-            options.IsCaseSensitive = parseResult.GetValue(caseSensitiveOption);
-        }
-
-        if (IsSet(noRecurseOption))
-        {
-            options.IncludeSubdirectories = !parseResult.GetValue(noRecurseOption);
-        }
-
-        if (IsSet(scopeOption))
-        {
-            options.SearchScope = parseResult.GetValue(scopeOption);
-        }
-
-        if (IsSet(encodingOption))
-        {
-            options.Encoding = parseResult.GetValue(encodingOption)!;
+            throw new ArgumentException("--max-columns must not be negative.");
         }
 
         if (parseResult.GetValue(saveOptionsOption) is { } saveFile)
@@ -110,13 +111,34 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
             return ExitCodes.Success;
         }
 
+        if (string.IsNullOrWhiteSpace(options.Pattern))
+        {
+            if (args.Length == 0)
+            {
+                new HelpAction().Invoke(parseResult);
+                return ExitCodes.Error;
+            }
+
+            throw new ArgumentException(
+                "No search pattern given, neither on the command line nor in an options file. See needle-cli --help.");
+        }
+
+        if (commandLine.Pattern != null && commandLine.StartDirectory == null && Directory.Exists(commandLine.Pattern))
+        {
+            // A common mistake: needle-cli <path> searches for the path as text in the current directory.
+            await Console.Error.WriteLineAsync(
+                $"needle-cli: Searching for the text '{commandLine.Pattern}' in '{Path.GetFullPath(options.StartDirectory ?? ".")}'. " +
+                "To search in that directory, use: needle-cli <pattern> <path>");
+        }
+
         var output = new OutputOptions
         {
             FilesWithMatches = parseResult.GetValue(filesWithMatchesOption),
             Count = parseResult.GetValue(countOption),
             Sort = parseResult.GetValue(sortOption),
             Color = !parseResult.GetValue(noColorOption),
-            Stats = parseResult.GetValue(statsOption)
+            Stats = parseResult.GetValue(statsOption),
+            MaxColumns = options.MaxColumns ?? 0
         };
 
         return await new SearchRunner(options.ToSearchParameters(), output).RunAsync(cancellationToken);
@@ -135,3 +157,16 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
 });
 
 return await rootCommand.Parse(args).InvokeAsync();
+
+static SearchOptions LoadOptions(string filePath)
+{
+    try
+    {
+        return SearchOptions.Load(filePath);
+    }
+    catch (JsonException ex)
+    {
+        // Which of the files is wrong.
+        throw new JsonException($"{filePath}: {ex.Message}", ex);
+    }
+}

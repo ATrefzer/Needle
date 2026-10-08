@@ -19,6 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\Needle.Cli\needle-cli.template.json" Link="Files\needle-cli.template.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Files\file-latin9.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

@@ -18,6 +18,15 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Template with the default options, next to the executable. Not included in the single file. The user renames it to needle-cli.json, so an update does not overwrite it. -->
+        <None Update="needle-cli.template.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
       <PackageReference Include="System.CommandLine" Version="2.0.12" />
     </ItemGroup>
 

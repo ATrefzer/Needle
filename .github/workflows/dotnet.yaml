@@ -36,7 +36,7 @@ jobs:
 
       # tar keeps the executable flag.
       - name: Pack CLI
-        run: tar -czf needle-cli-linux-x64.tar.gz -C publish-cli needle-cli
+        run: tar -czf needle-cli-linux-x64.tar.gz -C publish-cli needle-cli needle-cli.template.json
 
       - uses: actions/upload-artifact@v4
         with:

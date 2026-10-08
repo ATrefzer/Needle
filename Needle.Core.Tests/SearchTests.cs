@@ -78,6 +78,29 @@ public class SearchTests : TempDirectoryTestBase
     }
 
     [Test]
+    public async Task Star_matches_all_files_on_all_platforms()
+    {
+        CreateFile("code.cs", "foo");
+        CreateFile("Makefile", "foo");
+        CreateFile(".bashrc", "foo");
+
+        var results = await SearchAsync("foo", fileMasks: "*");
+
+        Assert.That(results.Select(r => r.FileName), Is.EquivalentTo(new[] { "code.cs", "Makefile", ".bashrc" }));
+    }
+
+    [Test]
+    public async Task Star_dot_star_requires_a_dot()
+    {
+        CreateFile("code.cs", "foo");
+        CreateFile("Makefile", "foo");
+
+        var results = await SearchAsync("foo", fileMasks: "*.*");
+
+        Assert.That(results.Select(r => r.FileName), Is.EquivalentTo(new[] { "code.cs" }));
+    }
+
+    [Test]
     public async Task File_masks_are_applied_to_files_and_zip_entries()
     {
         CreateFile("match.txt", "foo");

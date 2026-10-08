@@ -8,6 +8,36 @@ namespace Needle.Core.Tests;
 [TestFixture]
 public class SearchOptionsTests : TempDirectoryTestBase
 {
+    private static readonly string TemplatePath = Path.Combine(AppContext.BaseDirectory, "Files", "needle-cli.template.json");
+
+    [Test]
+    public void Template_of_the_command_line_tool_contains_all_options()
+    {
+        using var json = JsonDocument.Parse(File.ReadAllText(TemplatePath),
+            new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
+        var keys = json.RootElement.EnumerateObject().Select(p => p.Name);
+
+        Assert.That(keys, Is.EquivalentTo(typeof(SearchOptions).GetProperties().Select(p => p.Name)));
+    }
+
+    [Test]
+    public void Template_of_the_command_line_tool_has_no_effect()
+    {
+        var template = SearchOptions.Load(TemplatePath);
+        var fromTemplate = template.ToSearchParameters();
+        var defaults = new SearchOptions().ToSearchParameters();
+
+        Assert.That(fromTemplate.StartDirectory, Is.EqualTo(defaults.StartDirectory));
+        Assert.That(fromTemplate.FileMasks, Is.EqualTo(defaults.FileMasks));
+        Assert.That(fromTemplate.Pattern, Is.EqualTo(defaults.Pattern));
+        Assert.That(fromTemplate.IsRegex, Is.EqualTo(defaults.IsRegex));
+        Assert.That(fromTemplate.IsCaseSensitive, Is.EqualTo(defaults.IsCaseSensitive));
+        Assert.That(fromTemplate.IncludeSubdirectories, Is.EqualTo(defaults.IncludeSubdirectories));
+        Assert.That(fromTemplate.Scope, Is.EqualTo(defaults.Scope));
+        Assert.That(fromTemplate.EncodingWithoutBom.CodePage, Is.EqualTo(defaults.EncodingWithoutBom.CodePage));
+        Assert.That(template.MaxColumns, Is.EqualTo(0));
+    }
+
     [Test]
     public void Options_are_loaded_with_comments_and_enum_names()
     {
@@ -32,15 +62,30 @@ public class SearchOptionsTests : TempDirectoryTestBase
     }
 
     [Test]
-    public void Missing_values_keep_their_defaults()
+    public void Missing_values_are_not_set()
     {
         CreateFile("search.json", """{ "Pattern": "foo" }""");
 
         var options = SearchOptions.Load(PathOf("search.json"));
 
-        Assert.That(options.FileMasks, Is.EqualTo("*"));
-        Assert.That(options.IncludeSubdirectories, Is.True);
-        Assert.That(options.SearchScope, Is.EqualTo(SearchScope.Content));
+        Assert.That(options.FileMasks, Is.Null);
+        Assert.That(options.IncludeSubdirectories, Is.Null);
+        Assert.That(options.SearchScope, Is.Null);
+        Assert.That(options.MaxColumns, Is.Null);
+    }
+
+    [Test]
+    public void Defaults_are_used_for_options_that_are_not_set()
+    {
+        var parameters = new SearchOptions { Pattern = "foo" }.ToSearchParameters();
+
+        Assert.That(parameters.StartDirectory, Is.EqualTo(Environment.CurrentDirectory));
+        Assert.That(parameters.FileMasks, Is.EqualTo("*"));
+        Assert.That(parameters.IsRegex, Is.False);
+        Assert.That(parameters.IsCaseSensitive, Is.False);
+        Assert.That(parameters.IncludeSubdirectories, Is.True);
+        Assert.That(parameters.Scope, Is.EqualTo(SearchScope.Content));
+        Assert.That(parameters.EncodingWithoutBom.CodePage, Is.EqualTo(65001));
     }
 
     [Test]
@@ -56,19 +101,40 @@ public class SearchOptionsTests : TempDirectoryTestBase
     {
         CreateFile(Path.Combine("config", "search.json"), """{ "StartDirectory": "../src", "Pattern": "foo" }""");
 
-        var parameters = SearchOptions.Load(PathOf(Path.Combine("config", "search.json"))).ToSearchParameters();
+        var options = SearchOptions.Load(PathOf(Path.Combine("config", "search.json")));
 
-        Assert.That(parameters.StartDirectory, Is.EqualTo(PathOf("src")));
+        Assert.That(options.StartDirectory, Is.EqualTo(PathOf("src")));
     }
 
     [Test]
-    public void Missing_start_directory_is_the_directory_of_the_options_file()
+    public void Set_options_override_and_others_are_kept()
     {
-        CreateFile("search.json", """{ "Pattern": "foo" }""");
+        var lower = new SearchOptions { Pattern = "foo", FileMasks = "*.cs", IsRegex = true, MaxColumns = 200 };
+        var higher = new SearchOptions { Pattern = "bar", IsRegex = false };
 
-        var parameters = SearchOptions.Load(PathOf("search.json")).ToSearchParameters();
+        var merged = lower.Merge(higher);
 
-        Assert.That(parameters.StartDirectory, Is.EqualTo(Directory));
+        Assert.That(merged.Pattern, Is.EqualTo("bar"));
+        Assert.That(merged.IsRegex, Is.False);
+        Assert.That(merged.FileMasks, Is.EqualTo("*.cs"));
+        Assert.That(merged.MaxColumns, Is.EqualTo(200));
+        Assert.That(merged.StartDirectory, Is.Null);
+    }
+
+    [Test]
+    public void Files_are_layered()
+    {
+        CreateFile(Path.Combine("tool", "needle-cli.json"), """{ "FileMasks": "*.cs", "MaxColumns": 300 }""");
+        CreateFile(Path.Combine("repo", "search.json"), """{ "StartDirectory": "src", "Pattern": "foo" }""");
+
+        var options = SearchOptions.Load(PathOf(Path.Combine("tool", "needle-cli.json")))
+            .Merge(SearchOptions.Load(PathOf(Path.Combine("repo", "search.json"))))
+            .Merge(new SearchOptions { Pattern = "bar" });
+
+        Assert.That(options.FileMasks, Is.EqualTo("*.cs"));
+        Assert.That(options.MaxColumns, Is.EqualTo(300));
+        Assert.That(options.StartDirectory, Is.EqualTo(PathOf(Path.Combine("repo", "src"))));
+        Assert.That(options.Pattern, Is.EqualTo("bar"));
     }
 
     [Test]
@@ -80,20 +146,25 @@ public class SearchOptionsTests : TempDirectoryTestBase
             Pattern = @"\w+",
             IsCaseSensitive = true,
             SearchScope = SearchScope.FileName,
-            Encoding = "1252"
+            Encoding = "1252",
+            MaxColumns = 120
         };
 
         options.Save(PathOf("search.json"));
         var loaded = SearchOptions.Load(PathOf("search.json"));
 
-        // Readable: enum names, regex characters are not escaped.
-        Assert.That(File.ReadAllText(PathOf("search.json")), Does.Contain("\"FileName\""));
-        Assert.That(File.ReadAllText(PathOf("search.json")), Does.Contain(@"\w+"));
-        Assert.That(loaded.StartDirectory, Is.EqualTo("src"));
+        // Readable: enum names, regex characters are not escaped, options that are not set are left out.
+        var json = File.ReadAllText(PathOf("search.json"));
+        Assert.That(json, Does.Contain("\"FileName\""));
+        Assert.That(json, Does.Contain(@"\w+"));
+        Assert.That(json, Does.Not.Contain("FileMasks"));
+        Assert.That(loaded.StartDirectory, Is.EqualTo(PathOf("src")));
         Assert.That(loaded.Pattern, Is.EqualTo(@"\w+"));
         Assert.That(loaded.IsCaseSensitive, Is.True);
         Assert.That(loaded.SearchScope, Is.EqualTo(SearchScope.FileName));
         Assert.That(loaded.Encoding, Is.EqualTo("1252"));
+        Assert.That(loaded.MaxColumns, Is.EqualTo(120));
+        Assert.That(loaded.FileMasks, Is.Null);
     }
 
     [TestCase("utf8", 65001)]
