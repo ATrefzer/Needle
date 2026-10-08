@@ -82,6 +82,8 @@ A match in a file name is written as the path only. Paths below the current dire
 needle-cli <pattern> [<path>] [options]
 ```
 
+Options can be placed anywhere, before or after the pattern. The path always follows the pattern. A single argument is the pattern: `needle-cli d:\projects` searches for the text `d:\projects` in the current directory, so needle-cli writes a warning in this case.
+
 | Option | Description |
 |---|---|
 | `<pattern>` | Text or .NET regular expression with `-E`. |
@@ -127,8 +129,14 @@ Instead of typing many options, you can put them in a JSON file:
 ```
 
 ```
+# Searches with the options of the file.
 needle-cli -o search.json
-needle-cli -o search.json "other pattern"
+
+# Same options, but searches for "HACK" instead of the pattern in the file.
+needle-cli HACK -o search.json
+
+# Same options, but case sensitive and only in C# files.
+needle-cli -o search.json -s -m "*.cs"
 ```
 
 All keys are optional. The options are taken from these levels, each one overrides the previous ones:
